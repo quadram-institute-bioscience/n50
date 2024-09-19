@@ -28,7 +28,7 @@ jobs:
       run: make test
 
     - name: Run simple test
-      run: make test-simple
+      run: make autotest
 
     - name: Archive binary
       uses: actions/upload-artifact@v3
