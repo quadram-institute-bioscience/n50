@@ -7,10 +7,9 @@
 #include <getopt.h>
 #include <stdbool.h>
 
-#define BUFFER_SIZE 4 * 1024 * 1024  // 1MB buffer
+#define BUFFER_SIZE 1024 * 1024  // 1MB buffer
 #define MAX_THREADS 8
 #define INITIAL_CAPACITY 1000000
-#define VERSION "1.0.0"
 
 typedef struct {
     int *lengths;
@@ -26,26 +25,6 @@ typedef struct {
     int n50;
     bool is_fastq;
 } FileStats;
-
-void print_usage(const char *program_name) {
-    printf("Usage: %s [OPTIONS] [FILENAME...]\n", program_name);
-    printf("\nOptions:\n");
-    printf("  -a, --fasta        Force FASTA input format\n");
-    printf("  -q, --fastq        Force FASTQ input format\n");
-    printf("  -h, --header       Print header in output\n");
-    printf("  -n, --n50          Output only N50 value\n");
-    printf("      --help         Display this help message and exit\n");
-    printf("      --version      Display version information and exit\n");
-    printf("\nDescription:\n");
-    printf("  Calculate N50 and other sequence statistics from FASTA or FASTQ files.\n");
-    printf("  Supports multiple input files and automatic format detection.\n");
-}
-
-void print_version() {
-    printf("N50 Calculator version %s\n", VERSION);
-    printf("Copyright (C) 2024 Andrea Telatin\n");
-    printf("License: MIT\n");
-}
 
 int compare(const void *a, const void *b) {
     return (*(int*)b - *(int*)a);
@@ -196,15 +175,13 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"fasta", no_argument, 0, 'a'},
         {"fastq", no_argument, 0, 'q'},
-        {"header", no_argument, 0, 'H'},
+        {"header", no_argument, 0, 'h'},
         {"n50", no_argument, 0, 'n'},
-        {"help", no_argument, 0, 'h'},
-        {"version", no_argument, 0, 'v'},
         {0, 0, 0, 0}
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "aqhnHv", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "aqhn", long_options, NULL)) != -1) {
         switch (opt) {
             case 'a':
                 force_fasta = true;
@@ -212,27 +189,20 @@ int main(int argc, char *argv[]) {
             case 'q':
                 force_fastq = true;
                 break;
-            case 'H':
+            case 'h':
                 opt_header = true;
                 break;
             case 'n':
                 opt_n50 = true;
                 break;
-            case 'h':
-                print_usage(argv[0]);
-                return 0;
-            case 'v':
-                print_version();
-                return 0;
             default:
-                fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
+                fprintf(stderr, "Usage: %s [--fasta | --fastq] [--header] [--n50] [filename...]\n", argv[0]);
                 return 1;
         }
     }
 
     if (optind == argc) {
         fprintf(stderr, "Error: No input files specified\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
         return 1;
     }
 

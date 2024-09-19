@@ -1,3 +1,32 @@
+/*
+ * N50 Calculator v2.0
+ * Andrea Telatin, 2024
+ *
+ * This program calculates N50 and other sequence statistics from FASTA or FASTQ files.
+ *
+ * Features:
+ * - Supports FASTA and FASTQ formats (including gzipped files)
+ * - Multi-threaded processing for improved performance
+ * - Automatic format detection based on file extension
+ * - Optional header output and N50-only output
+ *
+ * Usage: n50 [options] [filename]
+ * Options:
+ *   --fasta/-a: Force FASTA input
+ *   --fastq/-q: Force FASTQ input
+ *   --header/-h: Print header in output
+ *   --n50/-n: Output only N50 value
+ *
+ * Input: File or stdin
+ * Output: Tab-separated values (Format, Total Length, Total Sequences, N50)
+ *
+ * Compile: gcc -o n50 n50.c -lz -lpthread -O3
+ *
+ * Dependencies: zlib, pthread
+ *
+ * Note: Max threads set to 8, initial capacity 1,000,000 sequences.
+ *       Adjust MAX_THREADS and INITIAL_CAPACITY for different requirements.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,11 +35,12 @@
 #include <ctype.h>
 #include <getopt.h>
 #include <stdbool.h>
+#include <unistd.h>
 
-#define BUFFER_SIZE 4 * 1024 * 1024  // 1MB buffer
+#define BUFFER_SIZE 1024 * 1024  // 1MB buffer
 #define MAX_THREADS 8
 #define INITIAL_CAPACITY 1000000
-#define VERSION "1.0.0"
+#define VERSION "2.0.1"
 
 typedef struct {
     int *lengths;
@@ -32,13 +62,14 @@ void print_usage(const char *program_name) {
     printf("\nOptions:\n");
     printf("  -a, --fasta        Force FASTA input format\n");
     printf("  -q, --fastq        Force FASTQ input format\n");
-    printf("  -h, --header       Print header in output\n");
+    printf("  -H, --header       Print header in output\n");
     printf("  -n, --n50          Output only N50 value\n");
     printf("      --help         Display this help message and exit\n");
     printf("      --version      Display version information and exit\n");
     printf("\nDescription:\n");
     printf("  Calculate N50 and other sequence statistics from FASTA or FASTQ files.\n");
-    printf("  Supports multiple input files and automatic format detection.\n");
+    printf("  Supports multiple input files, STDIN, and automatic format detection.\n");
+    printf("  If no FILENAME is provided, it reads from STDIN.\n");
 }
 
 void print_version() {
@@ -71,21 +102,26 @@ void *process_chunk(void *arg) {
     return result;
 }
 
-FileStats process_file(const char *filename, bool force_fasta, bool force_fastq) {
-    gzFile fp = gzopen(filename, "r");
-    if (!fp) {
-        fprintf(stderr, "Error: Cannot open file %s\n", filename);
-        exit(1);
-    }
-
+FileStats process_file(gzFile fp, const char *filename, bool force_fasta, bool force_fastq) {
     char buffer[BUFFER_SIZE];
     int *chunk_lengths = NULL;
     int chunk_count = 0;
     int chunk_capacity = INITIAL_CAPACITY;
     int current_length = 0;
-    bool is_fastq = force_fastq || (!force_fasta && (strstr(filename, ".fastq") != NULL || strstr(filename, ".fq") != NULL));
+    bool is_fastq = force_fastq || (!force_fasta && (filename && (strstr(filename, ".fastq") != NULL || strstr(filename, ".fq") != NULL)));
 
     chunk_lengths = malloc(chunk_capacity * sizeof(int));
+
+    // Read first non-empty line to detect format if not forced
+    if (!force_fasta && !force_fastq) {
+        while (gzgets(fp, buffer, BUFFER_SIZE) != NULL) {
+            if (buffer[0] != '\n' && buffer[0] != '\r') {
+                is_fastq = (buffer[0] == '@');
+                break;
+            }
+        }
+        gzrewind(fp);
+    }
 
     if (is_fastq) {
         int line_count = 0;
@@ -127,8 +163,6 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq)
             chunk_lengths[chunk_count++] = current_length;
         }
     }
-
-    gzclose(fp);
 
     // Process chunks using threads
     int num_threads = (chunk_count < MAX_THREADS) ? chunk_count : MAX_THREADS;
@@ -177,7 +211,7 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq)
     free(lengths);
 
     FileStats stats = {
-        .filename = strdup(filename),
+        .filename = filename ? strdup(filename) : strdup("STDIN"),
         .total_length = total_length,
         .length_count = length_count,
         .n50 = n50,
@@ -230,18 +264,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (optind == argc) {
-        fprintf(stderr, "Error: No input files specified\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        return 1;
-    }
-
     if (opt_header && !opt_n50) {
         printf("Filename\tFormat\tTotal_Length\tTotal_Sequences\tN50\n");
     }
 
-    for (int i = optind; i < argc; i++) {
-        FileStats stats = process_file(argv[i], force_fasta, force_fastq);
+    if (optind == argc) {
+        // No input files specified, read from STDIN
+        gzFile fp = gzdopen(fileno(stdin), "r");
+        if (!fp) {
+            fprintf(stderr, "Error: Cannot read from STDIN\n");
+            return 1;
+        }
+
+        FileStats stats = process_file(fp, NULL, force_fasta, force_fastq);
         
         if (opt_n50) {
             printf("%s\t%d\n", stats.filename, stats.n50);
@@ -250,6 +285,27 @@ int main(int argc, char *argv[]) {
         }
 
         free(stats.filename);
+        gzclose(fp);
+    } else {
+        // Process input files
+        for (int i = optind; i < argc; i++) {
+            gzFile fp = gzopen(argv[i], "r");
+            if (!fp) {
+                fprintf(stderr, "Error: Cannot open file %s\n", argv[i]);
+                continue;
+            }
+
+            FileStats stats = process_file(fp, argv[i], force_fasta, force_fastq);
+            
+            if (opt_n50) {
+                printf("%s\t%d\n", stats.filename, stats.n50);
+            } else {
+                printf("%s\t%s\t%lld\t%d\t%d\n", stats.filename, stats.is_fastq ? "FASTQ" : "FASTA", stats.total_length, stats.length_count, stats.n50);
+            }
+
+            free(stats.filename);
+            gzclose(fp);
+        }
     }
 
     return 0;
