@@ -1,5 +1,18 @@
 #!/bin/bash
 PARENT_DIR=$(dirname $(dirname $(readlink -f $0)))
+
+mkdir -p $PARENT_DIR/test/benchmark
+mkdir -p $PARENT_DIR/test/local
+mkdir -p $PARENT_DIR/test/sim
+
+for bin in seqfu seqkit ./bin/n50 ./bin/n50o; do
+    if ! command -v $bin &> /dev/null; then
+        echo "Error: $bin could not be found."
+        echo "Please make sure that the binary is compiled and in the bin/ directory."
+        exit 1
+    fi
+done
+
 set -euo pipefail
 # Let's if the subdirectories bin/  and test/ exist
 if [ ! -d "$PARENT_DIR/bin" ] || [ ! -d "$PARENT_DIR/test" ] || [ ! -d "$PARENT_DIR/test/local" ]; then

@@ -8,15 +8,16 @@
 #define MAX_SEQ_NAME_LEN 256
 #define MAX_FILENAME_LEN 256
 #define MAX_THREADS 16
+#define CHUNK_SIZE 1000 // Number of sequences to process in each chunk
 
 // Thread-related structures
 typedef struct {
     char **sequences;
     int *lengths;
-    int start_index;
-    int end_index;
+    int num_seqs;
+    int *next_seq;
+    pthread_mutex_t *mutex;
 } ThreadData;
-
 
 // Function prototypes
 long long calculate_n50(const int *lengths, int num_seqs, long long *total_length);
@@ -27,8 +28,8 @@ void free_resources(char **sequences, int *lengths, int num_seqs);
 void write_sequences(char **sequences, int *lengths, int num_seqs, const char *outfile, const char *format);
 
 int main(int argc, char *argv[]) {
-    if (argc != 9) {
-        fprintf(stderr, "Usage: %s <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir> <num_threads>\n", argv[0]);
+    if (argc < 8) {
+        fprintf(stderr, "Usage: %s <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir>\n", argv[0]);
         return 1;
     }
 
@@ -39,7 +40,12 @@ int main(int argc, char *argv[]) {
     int tot_files = atoi(argv[5]);
     char *format = argv[6];
     char *outdir = argv[7];
-    int num_threads = atoi(argv[8]);
+    // if specified, the number of threads to use else 1
+    int num_threads = 1;
+    if (argc == 9) {
+        num_threads = atoi(argv[8]);
+    }
+
 
     // Input validation
     if (min_seqs <= 0 || max_seqs <= 0 || min_len <= 0 || max_len <= 0 || tot_files <= 0 || num_threads <= 0 || num_threads > MAX_THREADS) {
@@ -101,18 +107,20 @@ int main(int argc, char *argv[]) {
 
         // Set up threading for sequence generation
         pthread_t threads[num_threads];
-        ThreadData thread_data[num_threads];
-
-        int seqs_per_thread = num_seqs / num_threads;
-        int remaining_seqs = num_seqs % num_threads;
+        ThreadData thread_data;
+        thread_data.sequences = sequences;
+        thread_data.lengths = contig_lengths;
+        thread_data.num_seqs = num_seqs;
+        
+        int next_seq = 0;
+        thread_data.next_seq = &next_seq;
+        
+        pthread_mutex_t mutex;
+        pthread_mutex_init(&mutex, NULL);
+        thread_data.mutex = &mutex;
 
         for (int t = 0; t < num_threads; t++) {
-            thread_data[t].sequences = sequences;
-            thread_data[t].lengths = contig_lengths;
-            thread_data[t].start_index = t * seqs_per_thread + (t < remaining_seqs ? t : remaining_seqs);
-            thread_data[t].end_index = (t + 1) * seqs_per_thread + (t < remaining_seqs ? t + 1 : remaining_seqs);
-
-            if (pthread_create(&threads[t], NULL, generate_sequences, (void *)&thread_data[t]) != 0) {
+            if (pthread_create(&threads[t], NULL, generate_sequences, (void *)&thread_data) != 0) {
                 fprintf(stderr, "Failed to create thread %d\n", t);
                 free_resources(sequences, contig_lengths, num_seqs);
                 return 1;
@@ -124,6 +132,8 @@ int main(int argc, char *argv[]) {
             pthread_join(threads[t], NULL);
         }
 
+        pthread_mutex_destroy(&mutex);
+
         // Write sequences to file (single-threaded)
         write_sequences(sequences, contig_lengths, num_seqs, outfile, format);
 
@@ -133,7 +143,6 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
 
 void gen_ctg_len(int min_len, int max_len, int num_seqs, int *lengths) {
     // calculate the even distance between num_seqs sequences spanning from min_len to max_len
@@ -208,11 +217,26 @@ int *generate_contigs(int N50, int SUM_LEN, int TOT_SEQS) {
     return contig_list;
 }
 
+
 void *generate_sequences(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    for (int i = data->start_index; i < data->end_index; i++) {
-        generate_sequence(data->lengths[i], data->sequences[i]);
+    int start, end;
+    
+    while (1) {
+        pthread_mutex_lock(data->mutex);
+        start = *data->next_seq;
+        end = start + CHUNK_SIZE;
+        if (end > data->num_seqs) end = data->num_seqs;
+        *data->next_seq = end;
+        pthread_mutex_unlock(data->mutex);
+        
+        if (start >= data->num_seqs) break;
+        
+        for (int i = start; i < end; i++) {
+            generate_sequence(data->lengths[i], data->sequences[i]);
+        }
     }
+    
     return NULL;
 }
 

@@ -1,3 +1,4 @@
 test/local
 .vscode/
 bin/*
+test/sim/*.*

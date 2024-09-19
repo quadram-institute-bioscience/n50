@@ -1,8 +1,10 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+
 /*
  * DNA Sequence Generator
  * Andrea Telatin 2023, (C) Quadram Institute Bioscience
@@ -22,6 +24,7 @@
  * This tool is useful for testing sequence analysis software, benchmarking
  * bioinformatics pipelines, and generating sample data for educational purposes.
  */
+#define BUFFER_SIZE 1048576 // 1 MB buffer
 #define MAX_SEQ_NAME_LEN 256
 #define MAX_FILENAME_LEN 256
 
@@ -81,9 +84,9 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Memory allocation failed for contig_lengths\n");
             return 1;
         }
-        fprintf(stderr, "%d file [%d num seqs]\n", i, num_seqs);
+        fprintf(stderr, "%d/%d %s file [%d num seqs]: ", i, tot_files, format, num_seqs);
         gen_ctg_len(min_len, max_len, num_seqs, contig_lengths);
-        
+        fprintf(stderr, "OK\n");
         long long total_length; // Change to long long
         int N50 = calculate_n50(contig_lengths, num_seqs, &total_length);
         fprintf(stderr, "\tTotal length: %lld\n", total_length); // Use %lld for long long
@@ -113,7 +116,7 @@ int main(int argc, char *argv[]) {
         } else {
             write_fastq(sequences, contig_lengths, num_seqs, outfile);
         }
-        fprintf(stderr, "  [Done: %s]\n", outfile);
+        fprintf(stderr, "  [Written to %s]\n", outfile);
         free_resources(sequences, contig_lengths, num_seqs);
     }
 
@@ -203,6 +206,15 @@ void write_fasta(char **sequences, int *lengths, int num_seqs, const char *outfi
         return;
     }
 
+    char *buffer = malloc(BUFFER_SIZE);
+    if (!buffer) {
+        fprintf(stderr, "Unable to allocate buffer for writing\n");
+        fclose(f);
+        return;
+    }
+
+    setvbuf(f, buffer, _IOFBF, BUFFER_SIZE);
+
     for (int i = 0; i < num_seqs; i++) {
         fprintf(f, ">seq%d\n", i + 1);
         for (int j = 0; j < lengths[i]; j += 60) {
@@ -211,7 +223,9 @@ void write_fasta(char **sequences, int *lengths, int num_seqs, const char *outfi
         }
     }
 
+    fflush(f);
     fclose(f);
+    free(buffer);
 }
 
 void write_fastq(char **sequences, int *lengths, int num_seqs, const char *outfile) {
@@ -221,6 +235,15 @@ void write_fastq(char **sequences, int *lengths, int num_seqs, const char *outfi
         return;
     }
 
+    char *buffer = malloc(BUFFER_SIZE);
+    if (!buffer) {
+        fprintf(stderr, "Unable to allocate buffer for writing\n");
+        fclose(f);
+        return;
+    }
+
+    setvbuf(f, buffer, _IOFBF, BUFFER_SIZE);
+
     for (int i = 0; i < num_seqs; i++) {
         fprintf(f, "@seq%d\n%s\n+\n", i + 1, sequences[i]);
         for (int j = 0; j < lengths[i]; j++) {
@@ -229,7 +252,9 @@ void write_fastq(char **sequences, int *lengths, int num_seqs, const char *outfi
         fputc('\n', f);
     }
 
+    fflush(f);
     fclose(f);
+    free(buffer);
 }
 
 void free_resources(char **sequences, int *lengths, int num_seqs) {

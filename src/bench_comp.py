@@ -29,6 +29,9 @@ def parse_csv(file_path: str) -> List[ToolData]:
         for row in reader:
             command, mean, stddev, median, user, system, min_time, max_time = row
             tool = command.split()[0]
+            # if tool is a path, extract the basename
+            if '/' in tool:
+                tool = tool.split('/')[-1]
             data.append(ToolData(
                 tool,
                 float(mean),

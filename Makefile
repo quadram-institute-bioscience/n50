@@ -5,9 +5,9 @@ LDFLAGS = -lz -lpthread
 SRC_DIR = src
 BIN_DIR = bin
 TEST_DIR = test
-TARGET  = $(SRC_DIR)/n50 
+TARGET  = $(BIN_DIR)/n50 
 SIMTARGET = $(BIN_DIR)/gen
-
+SIMDATA = test/sim/list.txt
 .PHONY: all clean test
 
 all: $(TARGET) $(SIMTARGET) $(TESTTARGET)
@@ -15,25 +15,38 @@ all: $(TARGET) $(SIMTARGET) $(TESTTARGET)
 #Make targets
 $(TARGET): $(SRC_DIR)/n50.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+
 $(TESTTARGET): $(SRC_DIR)/n50_opt.c | $(BIN_DIR)
 	$(CC)  $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 $(SIMTARGET): $(SRC_DIR)/gen.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@  
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 clean:
 	rm -rf $(BIN_DIR)
-	if [ -d "test/sim" ]; then rm -f test/sim/*; fi
+	if [ -d "test/sim" ]; then echo "Removing sim"; rm -rf test/sim/; fi
 
+$(SIMDATA): $(SIMTARGET)
+	# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format} \
+	mkdir -p test/sim; \
+	# ./program <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir>\
+	# small datasets \
+	$(SIMTARGET) 500        1000          5      2000000    5 fasta test/sim/; \
+	$(SIMTARGET) 500        1000          5        10000    5 fastq test/sim/; \
+	# large datasets
+	$(SIMTARGET) 5000     10000          1000      20000000    3 fasta test/sim/; \
+	$(SIMTARGET) 5000     10000          1000      20000000    3 fastq test/sim/; \
+	gzip -k test/sim/*.*; \
+	ls test/sim/*.* > $(SIMDATA)
 
 # Test rule
 test: $(TARGET) $(SIMTARGET)
 	@passed=0; failed=0; \
 	if [ -d "$(TEST_DIR)" ]; then \
-		echo "Running tests in $(TEST_DIR)"; \
+		echo "[1] Running tests in $(TEST_DIR)"; \
 		for file in $(TEST_DIR)/*.*; do \
 			filename=$$(basename "$$file"); \
 			expected_n50=$${filename%%.*}; \
@@ -49,8 +62,9 @@ test: $(TARGET) $(SIMTARGET)
 			fi; \
 		done; \
 	fi; \
+	mkdir -p test/sim; \
 	if [ -d "test/sim" ]; then \
-		echo "Generating simulated reads" \
+		echo "[2] Generating simulated reads" \
 		# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format} \
 		$(SIMTARGET) 10 35 1 2000 10 fasta test/sim/; \
 		$(SIMTARGET) 5 15 1 1000 8 fastq test/sim/; \
@@ -94,6 +108,7 @@ test: $(TARGET) $(SIMTARGET)
 	else \
 		echo "test/sim directory does not exist. Skipping simulation tests."; \
 	fi; \
+	echo "Tested $(TARGET)"; \
 	echo "Tests completed. Passed: $$passed, Failed: $$failed"; \
 	if [ $$failed -ne 0 ]; then exit 1; fi
 
@@ -123,13 +138,11 @@ autotest: $(TARGET)
 	@echo "Simple test completed."
 
 
-benchmark: $(TARGET) $(SIMTARGET)
+benchmark: $(TARGET) $(SIMTARGET) $(SIMDATA)
+
 	if [ -d "test/sim" ]; then \
-		echo "Generating simulated reads" \
-		# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format} \
-		# ./program <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir>\
-		$(SIMTARGET) 20        1000           1      2000000    2 fasta test/sim/; \
-		$(SIMTARGET) 10        1000         100        10000    1 fastq test/sim/; \
+		if [ ! -d "test/benchmark" ]; then mkdir -p test/benchmark; fi; \
+		if [ ! -d "test/local/" ]; then mkdir -p test/local/; fi; \
 		echo "Running simulation tests in test/sim"; \
 		for file in test/sim/*.*; do \
 			hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/$$(basename "$$file").csv" "$(TARGET) $$file" "seqfu stats $$file" "seqkit stats $$file"; \
@@ -137,10 +150,11 @@ benchmark: $(TARGET) $(SIMTARGET)
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all.csv" "$(TARGET) test/sim/*.*" "seqfu stats test/sim/*.*" "seqkit stats test/sim/*.*"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all_fasta.csv" "$(TARGET) test/sim/*.fasta" "seqfu stats test/sim/*.fasta" "seqkit stats test/sim/*.fasta"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all_fastq.csv" "$(TARGET) test/sim/*.fastq" "seqfu stats test/sim/*.fastq" "seqkit stats test/sim/*.fastq"; \
-		gzip test/sim/*.*; \
-		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all.csv" "$(TARGET) test/sim/*.gz" "seqfu stats test/sim/*.gz" "seqkit stats test/sim/*.gz"; \
-		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fasta.csv" "$(TARGET) test/sim/*.fasta.gz" "seqfu stats test/sim/*.fasta.gz" "seqkit stats test/sim/*.fasta.gz"; \
-		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fastq.csv" "$(TARGET) test/sim/*.fastq.gz" "seqfu stats test/sim/*.fastq.gz" "seqkit stats test/sim/*.fastq.gz"; \
+		gzip -f test/sim/*.*; \
+		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all.csv" "$(TARGET) test/{sim,local}/*.gz" "seqfu stats test/{sim,local}/*.gz" "seqkit stats test/{sim,local}/*.gz"; \
+		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fasta.csv" "$(TARGET) test/{sim,local}/*.fasta.gz" "seqfu stats test/{sim,local}/*.fasta.gz" "seqkit stats test/{sim,local}/*.fasta.gz"; \
+		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fastq.csv" "$(TARGET) test/{sim,local}/*.fastq.gz" "seqfu stats test/{sim,local}/*.fastq.gz" "seqkit stats test/{sim,local}/*.fastq.gz"; \
 	else \
 		echo "test/sim directory does not exist. Skipping simulation tests."; \
 	fi
+ 
