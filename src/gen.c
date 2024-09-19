@@ -155,6 +155,12 @@ long long calculate_n50(const int *lengths, int num_seqs, long long *total_lengt
 }
 
 int *generate_contigs(int N50, int SUM_LEN, int TOT_SEQS) {
+    /*
+        * Generate a list of contig lengths with N50 statistic
+        * N50: The length N such that 50% of the total sequence length is contained in contigs of length >= N
+        * SUM_LEN: Total length of all contigs
+        * TOT_SEQS: Total number of contigs 
+    */
     if (N50 > SUM_LEN || TOT_SEQS < 1) {
         fprintf(stderr, "Invalid input: N50 must be <= SUM_LEN and TOT_SEQS >= 1\n");
         return NULL;
