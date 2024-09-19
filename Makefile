@@ -6,14 +6,8 @@ SRC_DIR = src
 BIN_DIR = bin
 TEST_DIR = test
 TARGET  = $(SRC_DIR)/n50 
-TESTTARGET = $(BIN_DIR)/n50o
 SIMTARGET = $(BIN_DIR)/gen
-# check openmp support
-ifeq ($(shell $(CC) -fopenmp -dM -E - </dev/null | grep -c OPENMP), 0)
-	CFLAGS += -DNO_OPENMP
-else
-	CFLAGS += -DOPENMP
-endif
+
 .PHONY: all clean test
 
 all: $(TARGET) $(SIMTARGET) $(TESTTARGET)
