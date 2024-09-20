@@ -117,7 +117,6 @@ test: $(TARGET) $(SIMTARGET)
 				fi; \
 			fi; \
 		done; \
-		rm test/sim/*; \
 	else \
 		echo "test/sim directory does not exist. Skipping simulation tests."; \
 	fi; \
