@@ -2,3 +2,4 @@ test/local
 .vscode/
 bin/*
 test/sim/*.*
+data/doc.md

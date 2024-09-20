@@ -8,9 +8,14 @@ TEST_DIR = test
 TARGET  = $(BIN_DIR)/n50 
 SIMTARGET = $(BIN_DIR)/gen
 SIMDATA = test/sim/list.txt
+# Find all n50 variant source files
+N50_VARIANTS := $(wildcard $(SRC_DIR)/n50_*.c)
+# Create target names for all n50 variants
+N50_VARIANT_TARGETS := $(patsubst $(SRC_DIR)/n50_%.c,$(BIN_DIR)/n50_%,$(N50_VARIANTS))
+
 .PHONY: all clean test
 
-all: $(TARGET) $(SIMTARGET) $(TESTTARGET)
+all: $(TARGET) $(SIMTARGET) $(TESTTARGET) $(N50_VARIANT_TARGETS)
 
 #Make targets
 $(TARGET): $(SRC_DIR)/n50.c | $(BIN_DIR)
@@ -22,8 +27,14 @@ $(TESTTARGET): $(SRC_DIR)/n50_opt.c | $(BIN_DIR)
 $(SIMTARGET): $(SRC_DIR)/gen.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< -o $@  
 
+
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
+
+
+# Rule for n50 variants
+$(BIN_DIR)/n50_%: $(SRC_DIR)/n50_%.c | $(BIN_DIR)
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
 clean:
 	rm -rf $(BIN_DIR)
@@ -39,7 +50,9 @@ $(SIMDATA): $(SIMTARGET)
 	# large datasets
 	$(SIMTARGET) 5000     10000          1000      20000000    3 fasta test/sim/; \
 	$(SIMTARGET) 5000     10000          1000      20000000    3 fastq test/sim/; \
-	gzip -k test/sim/*.*; \
+	for FILE in test/sim/*.{fasta,fastq}; do \
+		gzip -k -f "$$FILE"; \
+	done; \
 	ls test/sim/*.* > $(SIMDATA)
 
 # Test rule
@@ -150,7 +163,9 @@ benchmark: $(TARGET) $(SIMTARGET) $(SIMDATA)
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all.csv" "$(TARGET) test/sim/*.*" "seqfu stats test/sim/*.*" "seqkit stats test/sim/*.*"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all_fasta.csv" "$(TARGET) test/sim/*.fasta" "seqfu stats test/sim/*.fasta" "seqkit stats test/sim/*.fasta"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/all_fastq.csv" "$(TARGET) test/sim/*.fastq" "seqfu stats test/sim/*.fastq" "seqkit stats test/sim/*.fastq"; \
-		gzip -f test/sim/*.*; \
+		for FILE in test/sim/*.{fasta,fastq}; do \
+			gzip -k -f "$$FILE"; \
+		done; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all.csv" "$(TARGET) test/{sim,local}/*.gz" "seqfu stats test/{sim,local}/*.gz" "seqkit stats test/{sim,local}/*.gz"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fasta.csv" "$(TARGET) test/{sim,local}/*.fasta.gz" "seqfu stats test/{sim,local}/*.fasta.gz" "seqkit stats test/{sim,local}/*.fasta.gz"; \
 		hyperfine --warmup 2 --max-runs 20 --export-csv "test/benchmark/gz_all_fastq.csv" "$(TARGET) test/{sim,local}/*.fastq.gz" "seqfu stats test/{sim,local}/*.fastq.gz" "seqkit stats test/{sim,local}/*.fastq.gz"; \
