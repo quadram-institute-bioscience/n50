@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <limits.h>
 
+// compile time constant DEBUG=0
+#define DEBUG 0
 
 #define BUFFER_SIZE 4 * 1024 * 1024  // 4MB buffer
 #define MAX_THREADS 16
@@ -205,7 +207,10 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
     chunk_lengths = malloc(chunk_capacity * sizeof(uint64_t));
 
     if (is_fastq) {
-        //fprintf(stderr, "Debug: Processing FASTQ file %s\n", filename);
+
+        #if DEBUG
+            fprintf(stderr, "Debug: Processing FASTQ file %s\n", filename);
+        #endif
         int newline_count = 0;
         bool in_sequence = false;
         while (1) {
@@ -222,14 +227,16 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
                     newline_count++;
                     if (newline_count % 4 == 1) {
                         in_sequence = true;
-                    } else if (newline_count % 4 == 3) {
+                    } else if (newline_count % 4 == 2) {
                         in_sequence = false;
                         if (chunk_count == chunk_capacity) {
                             chunk_capacity *= 2;
                             chunk_lengths = realloc(chunk_lengths, chunk_capacity * sizeof(uint64_t));
                         }
                         chunk_lengths[chunk_count++] = current_length;
-                        //: Recorded sequence length %lu\n", current_length);
+                        #if DEBUG
+                            fprintf(stderr, "Debug: Recorded sequence length %lu\n", current_length);
+                        #endif
                         if (extra) {
                             if (current_length > max) max = current_length;
                             if (current_length < min) min = current_length;
@@ -251,8 +258,10 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
                 }
             }
         }
-        //fprintf(stderr, "Debug: End of file reached. Total records processed: %d\n", chunk_count);
-    } else {  // FASTA
+        #if DEBUG
+            fprintf(stderr, "Debug: End of file reached. Total records processed: %d\n", chunk_count);
+        #endif
+        } else {  // FASTA
         bool in_sequence = false;
         while (1) {
             char *result;
@@ -349,6 +358,8 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
         }
     }
 
-    //fprintf(stderr, "Debug: Final stats - total_length: %lu, chunk_count: %d\n", stats.total_length, stats.length_count);
+    #if DEBUG
+        fprintf(stderr, "Debug: Final stats - total_length: %lu, chunk_count: %d\n", stats.total_length, stats.length_count);
+    #endif
     return stats;
 }

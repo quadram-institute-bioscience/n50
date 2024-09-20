@@ -57,72 +57,7 @@ $(SIMDATA): $(SIMTARGET)
 
 # Test rule
 test: $(TARGET) $(SIMTARGET)
-	@passed=0; failed=0; \
-	if [ -d "$(TEST_DIR)" ]; then \
-		echo "[1] Running tests in $(TEST_DIR)"; \
-		for file in $(TEST_DIR)/*.*; do \
-			filename=$$(basename "$$file"); \
-			expected_n50=$${filename%%.*}; \
-			echo "Testing $$filename (Expected N50: $$expected_n50)"; \
-			output=$$($(TARGET) "$$file"); \
-			actual_n50=$$(echo "$$output" | cut -f 5); \
-			if [ "$$actual_n50" = "$$expected_n50" ]; then \
-				echo "  [OK] Got expected N50"; \
-				passed=$$((passed + 1)); \
-			else \
-				echo "  FAIL: Expected N50: $$expected_n50, Got: $$actual_n50"; \
-				failed=$$((failed + 1)); \
-			fi; \
-		done; \
-	fi; \
-	mkdir -p test/sim; \
-	if [ -d "test/sim" ]; then \
-		echo "[2] Generating simulated reads" \
-		# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format} \
-		$(SIMTARGET) 10 35 1 2000 10 fasta test/sim/; \
-		$(SIMTARGET) 5 15 1 1000 8 fastq test/sim/; \
-		echo "Running simulation tests in test/sim"; \
-		for file in test/sim/*.*; do \
-			if echo "$$file" | grep -Eq '([0-9]+)_([0-9]+)_([0-9]+)\.(fasta|fastq)(\.gz)?$$'; then \
-				n50=$$(echo "$$file" | sed -E 's#.*/([0-9]+)_([0-9]+)_([0-9]+)\..*#\1#'); \
-				seqs=$$(echo "$$file" | sed -E 's#.*/([0-9]+)_([0-9]+)_([0-9]+)\..*#\2#'); \
-				totlen=$$(echo "$$file" | sed -E 's#.*/([0-9]+)_([0-9]+)_([0-9]+)\..*#\3#'); \
-				ext=$$(echo "$$file" | sed -E 's/.*\.([^.]+)(\.gz)?$$/\1/'); \
-				gz=$$(echo "$$file" | sed -E 's/.*(\.(gz))?$$/\1/'); \
-				echo "Testing $$(basename "$$file") (N50: $$n50, Seqs: $$seqs, TotLen: $$totlen)"; \
-				output=$$($(TARGET) --"$$ext" "$$file"); \
-				actual_size=$$(echo "$$output" | cut -f 3); \
-				actual_n50=$$(echo "$$output" | cut -f 5); \
-				actual_seqs=$$(echo "$$output" | cut -f 4); \
-				if [ "$$actual_seqs" -ne "$$seqs" ]; then \
-					echo "  [FAIL]    Expected $$seqs sequences, but found $$actual_seqs"; \
-					failed=$$((failed + 1)); \
-				else \
-					echo "  [OK]      Sequence count is $$seqs"; \
-					passed=$$((passed + 1)); \
-				fi; \
-				if [ "$$actual_n50" -ne "$$n50" ]; then \
-					echo "  [FAIL]    Expected N50 of $$n50, but found $$actual_n50"; \
-					failed=$$((failed + 1)); \
-				else \
-					echo "  [OK]      N50 is $$n50"; \
-					passed=$$((passed + 1)); \
-				fi; \
-				if [ "$$actual_size" -ne "$$totlen" ]; then \
-					echo "  [FAIL]    Expected size of $$actual_size, but found $$totlen"; \
-					failed=$$((failed + 1)); \
-				else \
-					echo "  [OK]      Total bp $$actual_size"; \
-					passed=$$((passed + 1)); \
-				fi; \
-			fi; \
-		done; \
-	else \
-		echo "test/sim directory does not exist. Skipping simulation tests."; \
-	fi; \
-	echo "Tested $(TARGET)"; \
-	echo "Tests completed. Passed: $$passed, Failed: $$failed"; \
-	if [ $$failed -ne 0 ]; then exit 1; fi
+	bash test/test.sh
 
 # Original simple test
 autotest: $(TARGET)
@@ -148,6 +83,7 @@ autotest: $(TARGET)
 	fi
 	@rm test.fasta
 	@echo "Simple test completed."
+	
 
 
 benchmark: $(TARGET) $(SIMTARGET) $(SIMDATA)

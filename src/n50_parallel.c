@@ -8,6 +8,8 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
 
 #define MAX_THREADS 16
 #define INITIAL_CAPACITY 1000000
