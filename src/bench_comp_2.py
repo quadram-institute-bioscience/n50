@@ -2,7 +2,7 @@
 import csv
 import sys
 from typing import List, NamedTuple
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 class ToolData(NamedTuple):
     command: str
@@ -74,14 +74,17 @@ def rank_tools(data: List[ToolData]) -> List[ToolData]:
     # Sort by mean execution time
     return sorted(averaged_data, key=lambda x: x.mean)
 
-def count_fastest_tools(file_paths: List[str]) -> Counter:
-    fastest_tools = Counter()
+def calculate_tool_scores(file_paths: List[str]) -> dict:
+    tool_scores = defaultdict(int)
     for file_path in file_paths:
         data = parse_csv(file_path)
         if data:
-            fastest_tool = min(data, key=lambda x: x.mean).command
-            fastest_tools[fastest_tool] += 1
-    return fastest_tools
+            sorted_tools = sorted(data, key=lambda x: x.mean)
+            num_tools = len(sorted_tools)
+            for rank, tool in enumerate(sorted_tools, start=1):
+                tool_scores[tool.command] += num_tools - rank
+
+    return tool_scores
 
 def print_ranked_tools(ranked_tools: List[ToolData]):
     print("Ranked list of tools (from fastest to slowest):")
@@ -91,13 +94,14 @@ def print_ranked_tools(ranked_tools: List[ToolData]):
     for i, tool in enumerate(ranked_tools, 1):
         print(f"{i:<5}{tool.command:<20}{tool.mean:<12.6f}{tool.median:<12.6f}{tool.stddev:<12.6f}{tool.min:<12.6f}{tool.max:<12.6f}")
 
-def print_fastest_tool_frequency(fastest_tools: Counter):
-    print("\nRanked list of tools by frequency of being fastest:")
+def print_tool_scores(tool_scores: dict):
+    print("\nRanked list of tools by score (NUM-RANK points):")
     print("-" * 50)
-    print(f"{'Rank':<5}{'Command':<20}{'Frequency':<10}")
+    print(f"{'Rank':<5}{'Command':<20}{'Score':<10}")
     print("-" * 50)
-    for i, (tool, count) in enumerate(fastest_tools.most_common(), 1):
-        print(f"{i:<5}{tool:<20}{count:<10}")
+    sorted_scores = sorted(tool_scores.items(), key=lambda x: x[1], reverse=True)
+    for i, (tool, score) in enumerate(sorted_scores, 1):
+        print(f"{i:<5}{tool:<20}{score:<10}")
 
 def main():
     if len(sys.argv) < 2:
@@ -105,13 +109,14 @@ def main():
         sys.exit(1)
     
     file_paths = sys.argv[1:]
+    total_files = len(file_paths)
     all_data = process_files(file_paths)
     ranked_tools = rank_tools(all_data)
-    
+    print(f"Processed {total_files} files with {len(all_data)} data points.")
     print_ranked_tools(ranked_tools)
     
-    fastest_tools = count_fastest_tools(file_paths)
-    print_fastest_tool_frequency(fastest_tools)
+    tool_scores = calculate_tool_scores(file_paths)
+    print_tool_scores(tool_scores)
 
 if __name__ == "__main__":
     main()

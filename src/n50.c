@@ -197,6 +197,8 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
     uint64_t *chunk_lengths = NULL;
     int chunk_count = 0;
     int chunk_capacity = INITIAL_CAPACITY;
+
+    // Extra statistics
     uint64_t current_length = 0;
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
@@ -205,6 +207,14 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
     bool is_fastq = force_fastq || (!force_fasta && (strstr(filename, ".fastq") != NULL || strstr(filename, ".fq") != NULL));
 
     chunk_lengths = malloc(chunk_capacity * sizeof(uint64_t));
+
+    // lookup table
+        // Create a lookup table for base counting
+    uint8_t base_lookup[256] = {0};
+    base_lookup['A'] = base_lookup['a'] = 0;
+    base_lookup['C'] = base_lookup['c'] = 1;
+    base_lookup['G'] = base_lookup['g'] = 2;
+    base_lookup['T'] = base_lookup['t'] = 3;
 
     if (is_fastq) {
 
@@ -223,7 +233,8 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
             if (bytes_read == 0) break;
 
             for (size_t i = 0; i < bytes_read; i++) {
-                if (buffer[i] == '\n') {
+                char c = buffer[i];
+                if (c == '\n') {
                     newline_count++;
                     if (newline_count % 4 == 1) {
                         in_sequence = true;
@@ -234,9 +245,7 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
                             chunk_lengths = realloc(chunk_lengths, chunk_capacity * sizeof(uint64_t));
                         }
                         chunk_lengths[chunk_count++] = current_length;
-                        #if DEBUG
-                            fprintf(stderr, "Debug: Recorded sequence length %lu\n", current_length);
-                        #endif
+                        
                         if (extra) {
                             if (current_length > max) max = current_length;
                             if (current_length < min) min = current_length;
@@ -246,22 +255,12 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
                 } else if (in_sequence) {
                     current_length++;
                     if (extra) {
-                        char c = toupper(buffer[i]);
-                        switch (c) {
-                            case 'A': bases[0]++; break;
-                            case 'C': bases[1]++; break;
-                            case 'G': bases[2]++; break;
-                            case 'T': bases[3]++; break;
-                            default: bases[4]++;
-                        }
+                        bases[base_lookup[(uint8_t)c]]++;
                     }
                 }
             }
         }
-        #if DEBUG
-            fprintf(stderr, "Debug: End of file reached. Total records processed: %d\n", chunk_count);
-        #endif
-        } else {  // FASTA
+    } else {  // FASTA
         bool in_sequence = false;
         while (1) {
             char *result;
@@ -291,14 +290,7 @@ FileStats process_file(const char *filename, bool force_fasta, bool force_fastq,
                 current_length += len;
                 if (extra) {
                     for (uint64_t i = 0; i < len; i++) {
-                        char c = toupper(buffer[i]);
-                        switch (c) {
-                            case 'A': bases[0]++; break;
-                            case 'C': bases[1]++; break;
-                            case 'G': bases[2]++; break;
-                            case 'T': bases[3]++; break;
-                            default: bases[4]++;
-                        }
+                        bases[base_lookup[(uint8_t)buffer[i]]]++;
                     }
                 }
             }
