@@ -4,11 +4,29 @@
 
 A fast and efficient tool for calculating N50 and other sequence statistics from FASTA and FASTQ files.
 
-## Other docs
+## Tools
 
-- [`gen` generate datasets](README_GEN.md)
-- [`n50` calculate N50](README_N50.md)
-- [benchmark](README_BENCHMARK.md)
+- [`n50` calculate N50](docs/README_N50.md)
+
+- [`n50_simreads`](docs/README_N50_SIMREADS.md), to simulate reads based on the lengths desired
+- [`n50_binner`](docs/README_N50_BINNER.md),  to generate a summary of reads lengths from a FASTQ file to be used with `n50_generate`
+- [`n50_generate`](docs/README_N50_GENERATE.md) uses the output of `n50_binner` to generate reads (using `n50_simreads`) 
+  
+- [`gen`](docs/README_GEN.md), alternative generator
+- [benchmark notes](docs/README_BENCHMARK.md)
+
+
+## General requirements
+
+- C compiler
+- zlib, pthread libraries
+
+## Compiling
+
+```bash
+make all
+make test
+```
 
 ## Author
 
