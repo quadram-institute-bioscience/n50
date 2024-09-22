@@ -4,7 +4,7 @@ SELF_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PARENT_DIR="$(dirname "$SELF_DIR")"
 BIN_DIR="$PARENT_DIR/bin"
 # Check binary presence
-for BIN in n50 n50_simreads gen;
+for BIN in n50 n50_simreads gen n50_binner;
 do
     if [ ! -f "$BIN_DIR/$BIN" ]; then
         echo "Binary not found: $BIN"
@@ -86,7 +86,51 @@ do
     echo ""
 done
 
+
+# Test n50_binner
+RAND_TEMP_DIR=$(mktemp -d)
+echo "TESTING BINNER"
+echo "Random temp dir: $RAND_TEMP_DIR"
+OUTPUT=$("${BIN_DIR}"/n50_simreads --fastq -o "$RAND_TEMP_DIR" 100*250 20*1k 1*50k 2> /dev/null | cut -f 2 -d ":" | sed 's/ //g')
+
+
+"${BIN_DIR}"/n50_binner "$OUTPUT" > "$RAND_TEMP_DIR"/binned.txt
+
+# Check if all lines in the output contains 1 and only 1 ","
+if [ "$(grep -c "," "$RAND_TEMP_DIR"/binned.txt)" -ne "$(wc -l < "$RAND_TEMP_DIR"/binned.txt)" ]; then
+    echo "ERROR: n50_binner output is not in the expected format"
+    exit 1
+else
+    echo "OK: n50_binner output is in the expected format"
+fi 
+
+# Check that the output file contains 1 line with 1 as word (-w), and 1 line with 120 as a word
+if [ "$(grep -c -w "1" "$RAND_TEMP_DIR"/binned.txt)" -ne 1 ]; then
+    echo "ERROR: n50_binner output does not contain 1"
+    exit 1
+else
+    echo "OK: n50_binner output contains 1"
+fi
+
+if [ "$(grep -c -w "120" "$RAND_TEMP_DIR"/binned.txt)" -ne 1 ]; then
+    echo "ERROR: n50_binner output does not contain 120"
+    exit 1
+else
+    echo "OK: n50_binner output contains 120"
+fi
+
+rm -rf "$RAND_TEMP_DIR"
+# Check 
+# --------------------------------------------------------------------------------
+# Hyperfine section
+# --------------------------------------------------------------------------------
+
 # if hyperfine and seqkit and seqfu are available go on
+# if NO_HYPERFINE is defined, skip
+if [ -n "$NO_HYPERFINE" ]; then
+    echo "INFO Skipping benchmar NO_HYPERFINE is defined"
+    exit 0
+fi
 if [ -z "$(which hyperfine)" ] || [ -z "$(which seqkit)" ] || [ -z "$(which seqfu)" ]; then
     echo "Skipping benchmark"
     exit 0

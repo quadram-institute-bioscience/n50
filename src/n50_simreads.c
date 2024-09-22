@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     if (!prefix) {
-        prefix = "x";
+        prefix = "";
     }
 
     // Create output directory if it doesn't exist
