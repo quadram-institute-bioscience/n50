@@ -125,14 +125,14 @@ rm -rf "$RAND_TEMP_DIR"
 # Hyperfine section
 # --------------------------------------------------------------------------------
 
-# if hyperfine and seqkit and seqfu are available go on
-# if NO_HYPERFINE is defined, skip
-if [ -n "$NO_HYPERFINE" ]; then
-    echo "INFO Skipping benchmar NO_HYPERFINE is defined"
+
+if [[  ! -z "${NO_HYPERFINE+x}" ]]; then
+    echo "Skipping benchmark: hyperfine is set [$NO_HYPERFINE]"
     exit 0
 fi
+
 if [ -z "$(which hyperfine)" ] || [ -z "$(which seqkit)" ] || [ -z "$(which seqfu)" ]; then
-    echo "Skipping benchmark"
+    echo "Skipping benchmark: hyperfine, seqkit or seqfu not found"
     exit 0
 fi
 

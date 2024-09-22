@@ -1,5 +1,13 @@
+#!/usr/bin/env python
 import random
-
+"""
+This script contains a function to generate a list of contigs (sub-sequences) 
+based on given parameters.
+    
+    Example:
+        contigs = generate_contigs(100, 1000, 10)
+        print(contigs)
+"""
 def gen_ctg_len(min_len, max_len, num_seqs):
     """
     Generate a list of contig lengths.
@@ -20,6 +28,22 @@ def calculate_n50(lengths):
             return (length, len(lengths), total_length)
         
 def generate_contigs(N50, SUM_LEN, TOT_SEQS):
+    """
+    This module contains a function to generate a list of contigs (sub-sequences) based on given parameters.
+    The function ensures that the sum of the contigs equals a specified total length (SUM_LEN) and that the 
+    number of contigs equals a specified total number of sequences (TOT_SEQS). The function also ensures that 
+    the largest contig is at least as large as a specified N50 value.
+    Functions:
+        generate_contigs(N50, SUM_LEN, TOT_SEQS): Generates a list of contigs based on the given parameters.
+    Args:
+        N50 (int): The minimum length of the largest contig.
+        SUM_LEN (int): The total length of all contigs combined.
+        TOT_SEQS (int): The total number of contigs to generate.
+    Returns:
+        list: A list of integers representing the lengths of the contigs.
+    Raises:
+        ValueError: If N50 is greater than SUM_LEN or TOT_SEQS is less than 1.
+    """
     if N50 > SUM_LEN or TOT_SEQS < 1:
         raise ValueError("Invalid input: N50 must be <= SUM_LEN and TOT_SEQS >= 1")
     
@@ -101,7 +125,7 @@ def generate_sequences(lengths, format, outfile):
 if __name__ == "__main__":
     import argparse
     import sys, os
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(help="Generate random sequences")
     parser.add_argument("--min-seqs", default=15, type=int, help="Minimum number of sequences")
     parser.add_argument("--max-seqs", default=5000, type=int, help="Maximum number of sequences")
     parser.add_argument("--min-len", default=12, type=int, help="Minimum length for a sequence")
