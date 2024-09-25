@@ -34,9 +34,12 @@ fi
 mkdir -p "$OUT_DIR"
 COUNTER=0
 # $COMPRESSOR = gzip or pigz if available
-COMPRESSOR=$(which pigz)
+COMPRESSOR=$(which pigz 2>/dev/null || echo "")
+# If pigz is not found, try gzip
 if [ -z "$COMPRESSOR" ]; then
-    COMPRESSOR=$(which gzip)
+    echo "pigz not found, trying gzip..."
+    COMPRESSOR=$(which gzip 2>/dev/null || echo "")
+    echo "gzip path: $COMPRESSOR"
 fi
 
 for FORMAT in fasta fastq;
