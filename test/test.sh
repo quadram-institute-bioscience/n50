@@ -14,6 +14,10 @@ do
     fi
 done
 
+# Print version
+file "$BIN_DIR"/n50
+"$BIN_DIR"/n50 --version
+
 # get 1 argument to perform deep test
 DEEP=0
 if [ "$#" -eq 1 ]; then
