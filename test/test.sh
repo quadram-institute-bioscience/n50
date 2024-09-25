@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -euox pipefail
 SELF_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PARENT_DIR="$(dirname "$SELF_DIR")"
 BIN_DIR="$PARENT_DIR/bin"
@@ -13,6 +13,10 @@ do
         echo "OK: Binary found: $BIN"
     fi
 done
+
+# Print version
+file "$BIN_DIR"/n50
+"$BIN_DIR"/n50 --version
 
 # get 1 argument to perform deep test
 DEEP=0
@@ -30,9 +34,12 @@ fi
 mkdir -p "$OUT_DIR"
 COUNTER=0
 # $COMPRESSOR = gzip or pigz if available
-COMPRESSOR=$(which pigz)
+COMPRESSOR=$(which pigz 2>/dev/null || echo "")
+# If pigz is not found, try gzip
 if [ -z "$COMPRESSOR" ]; then
-    COMPRESSOR=$(which gzip)
+    echo "pigz not found, trying gzip..."
+    COMPRESSOR=$(which gzip 2>/dev/null || echo "")
+    echo "gzip path: $COMPRESSOR"
 fi
 
 for FORMAT in fasta fastq;

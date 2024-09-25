@@ -8,6 +8,9 @@
 
 #define MAX_ARGS 100 // Maximum number of arguments
 #define MAX_PATH 1024 // Maximum path length
+
+#define MAX_NUM_LENGTH 30  // Enough for 64-bit integers
+
 // make const char bases[] = "ACGTactAC"; // 70% AT, 30% CG as global constant
 const char bases[] = "ACGTactAC"; 
 /*
@@ -38,18 +41,64 @@ void generate_quality(char *qual, int length) {
     }
     qual[length] = '\0';
 }
+char* num_to_str(long long number) {
+    static char str[MAX_NUM_LENGTH];
+    int is_negative = 0;
+    int len = 0;
+    long long abs_number;
 
+    // Handle negative numbers
+    if (number < 0) {
+        is_negative = 1;
+        abs_number = -number;
+    } else {
+        abs_number = number;
+    }
+
+    // Convert number to string (reverse order)
+    do {
+        str[len++] = abs_number % 10 + '0';
+        abs_number /= 10;
+    } while (abs_number > 0 && len < MAX_NUM_LENGTH - 1);
+
+    // Add commas
+    for (int i = 3; i < len; i += 4) {
+        if (len + 1 >= MAX_NUM_LENGTH) break;  // Prevent buffer overflow
+        memmove(&str[i + 1], &str[i], len - i + 1);
+        str[i] = ',';
+        len++;
+    }
+
+    // Add minus sign if negative
+    if (is_negative) {
+        if (len + 1 >= MAX_NUM_LENGTH) len--;  // Make room if necessary
+        memmove(&str[1], &str[0], len + 1);
+        str[0] = '-';
+        len++;
+    }
+
+    // Reverse the string
+    for (int i = 0; i < len / 2; i++) {
+        char temp = str[i];
+        str[i] = str[len - 1 - i];
+        str[len - 1 - i] = temp;
+    }
+
+    str[len] = '\0';
+    return str;
+}
 // Function to parse size string (e.g., "1kb", "2Mb")
-int parse_size(const char *size_str) {
-    int size = atoi(size_str);
+long long parse_size(const char *size_str) {
+    long long size = atoll(size_str); 
+    
     char suffix = toupper(size_str[strlen(size_str) - 1]);
     
     switch (suffix) {
-        case 'K': size *= 1000; break;
-        case 'M': size *= 1000000; break;
-        case 'G': size *= 1000000000; break;
+        case 'K': size *= 1000LL; break;
+        case 'M': size *= 1000000LL; break;
+        case 'G': size *= 1000000000LL; break;
     }
-    
+    fprintf(stderr, "Size: %lld\n", size);
     return size;
 }
 
@@ -57,22 +106,26 @@ int parse_size(const char *size_str) {
 int compare_ints(const void *a, const void *b) {
     return (*(int*)b - *(int*)a);
 }
-
+int compare_longs(const void *a, const void *b) {
+    long long va = *(const long long*)a;
+    long long vb = *(const long long*)b;
+    return (va > vb) - (va < vb);
+}
 // Function to calculate N50
-int calculate_n50(const int *lengths, int num_seqs, long long *total_length) {
-    int *sorted_lengths = malloc(sizeof(int) * num_seqs);
-    memcpy(sorted_lengths, lengths, sizeof(int) * num_seqs);
+long long calculate_n50(const long long *lengths, long long num_seqs, long long *total_length) {
+    long long *sorted_lengths = malloc(sizeof(long long) * num_seqs);
+    memcpy(sorted_lengths, lengths, sizeof(long long) * num_seqs);
     
-    qsort(sorted_lengths, num_seqs, sizeof(int), compare_ints);
+    qsort(sorted_lengths, num_seqs, sizeof(long long), compare_longs);
     
     *total_length = 0;
-    for (int i = 0; i < num_seqs; i++) {
+    for (long long i = 0; i < num_seqs; i++) {
         *total_length += sorted_lengths[i];
     }
     
     long long cumulative_length = 0;
-    int n50 = -1;
-    for (int i = 0; i < num_seqs; i++) {
+    long long n50 = -1;
+    for (long long i = 0; i < num_seqs; i++) {
         cumulative_length += sorted_lengths[i];
         if (cumulative_length >= *total_length / 2) {
             n50 = sorted_lengths[i];
@@ -83,6 +136,8 @@ int calculate_n50(const int *lengths, int num_seqs, long long *total_length) {
     free(sorted_lengths);
     return n50;
 }
+
+
 
 int main(int argc, char *argv[]) {
     if (argc < 5) {
@@ -135,9 +190,9 @@ int main(int argc, char *argv[]) {
 
     srand(1);
 
-    int total_seqs = 0;
-    int *lengths = NULL;
-    int lengths_capacity = 0;    // Capacity of lengths array
+    long long total_seqs = 0;
+    long long *lengths = NULL;
+    long long lengths_capacity = 0;
 
     for (int i = 0; i < argc; i++) {
         // if "*" is not found, continue
@@ -153,35 +208,37 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        int count = atoi(count_str);
-        int size = parse_size(size_str);
+        long long count = atoll(count_str);
+        long long size = parse_size(size_str);
 
         if (verbose) {
-            fprintf(stderr, "To do: %d sequences of size %d\n", count, size);
+            fprintf(stderr, "To do: %lld sequences of size %lld\n", count, size);
         }
         // Reallocate lengths array if necessary
         if (total_seqs + count > lengths_capacity) {
             lengths_capacity = total_seqs + count;
-            lengths = realloc(lengths, lengths_capacity * sizeof(int));
+            lengths = realloc(lengths, lengths_capacity * sizeof(long long));
             if (!lengths) {
                 fprintf(stderr, "Memory allocation failed.\n");
                 return 1;
             }
         }
 
-        for (int j = 0; j < count; j++) {
+        for (long long  j = 0; j < count; j++) {
             lengths[total_seqs++] = size;
         }
     }
 
     long long total_length;
-    int n50 = calculate_n50(lengths, total_seqs, &total_length);
+    long long n50 = calculate_n50(lengths, total_seqs, &total_length);
 
     // print N50, total seqs and total length to STDERR
-    fprintf(stderr, "\n------\nMode:\t%s\nPrefix:\t%s\nFormat:\t%s\nN50:\t%d\nTot seqs:\t%d\nTot len:\t%lld\n------\n", verbose ? "verbose" : "standard", prefix, format,n50, total_seqs, total_length);
+    //fprintf(stderr, "\n------\nMode:\t%s\nPrefix:\t%s\nFormat:\t%s\nN50:\t%lld\nTot seqs:\t%lld\nTot len:\t%lld\n------\n", verbose ? "verbose" : "standard", prefix, format, n50, total_seqs, total_length);
+    fprintf(stderr, "\n------\nMode:\t%s\nPrefix:\t%s\nFormat:\t%s\nN50:\t%s\nTot seqs:\t%s\nTot len:\t%s\n------\n",
+        verbose ? "verbose" : "standard", prefix, format,
+        num_to_str(n50), num_to_str(total_seqs), num_to_str(total_length));
     char filename[MAX_PATH];
-    snprintf(filename, MAX_PATH, "%s/%s%d_%d_%lld.%s", outdir, prefix, n50, total_seqs, total_length, is_fastq ? "fastq" : "fasta");
-
+    snprintf(filename, MAX_PATH, "%s/%s%lld_%lld_%lld.%s", outdir, prefix, (long long)n50, total_seqs, total_length, is_fastq ? "fastq" : "fasta");
     FILE *outfile = fopen(filename, "w");
     if (!outfile) {
         fprintf(stderr, "Failed to open output file: %s\n", filename);
@@ -205,14 +262,14 @@ int main(int argc, char *argv[]) {
 
         generate_sequence(sequence, lengths[i]);
         if (verbose && i % 1000 == 0) {
-            fprintf(stderr, " Generating seq #%d (%d bp)\r", i, lengths[i]);
+            fprintf(stderr, " Generating seq #%d (%lld bp)\r", i, lengths[i]);
         }
         
         if (is_fastq) {
             generate_quality(quality, lengths[i]);
-            fprintf(outfile, "@Simulated_read_%d len=%d\n%s\n+\n%s\n", i+1, lengths[i], sequence, quality);
+            fprintf(outfile, "@Simulated_read_%d len=%lld\n%s\n+\n%s\n", i+1, lengths[i], sequence, quality);
         } else {
-            fprintf(outfile, ">Simulated_read_%d len=%d\n%s\n", i+1, lengths[i],  sequence);
+            fprintf(outfile, ">Simulated_read_%d len=%lld\n%s\n", i+1, lengths[i],  sequence);
         }
     }
 

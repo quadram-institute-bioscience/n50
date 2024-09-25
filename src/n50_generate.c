@@ -67,7 +67,7 @@ void process_input_file(const char *input_file, char *generated_string, size_t m
         int written = snprintf(generated_string + current_length, max_length - current_length,
                                "%d*%d ", count, length);
 
-        if (written < 0 || written >= max_length - current_length) {
+        if (written < 0 || (size_t)written >= max_length - current_length) {
             fprintf(stderr, "Error: Generated string too long\n");
             fclose(file);
             exit(EXIT_FAILURE);

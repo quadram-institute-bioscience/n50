@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build-and-test-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -33,30 +33,63 @@ jobs:
     - name: Archive binary
       uses: actions/upload-artifact@v4
       with:
-        name: n50-calculator
+        name: n50-calculator-linux
         path: bin/n50
 
-  release-binary:
-    needs: build-and-test
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
+  build-and-test-macos:
+    runs-on: macos-latest
 
     steps:
     - uses: actions/checkout@v3
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc make zlib1g-dev
+        brew install gcc make zlib
 
     - name: Build N50 Calculator
-      run: make
+      run: make clean && make
 
-    - name: Compress binary
+    - name: Run tests
+      run: make test
+
+    - name: Run simple test
+      run: make autotest
+
+    - name: Archive binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: n50-calculator-macos
+        path: bin/n50
+
+  release-binaries:
+    needs: [build-and-test-linux, build-and-test-macos]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: n50-calculator-linux
+        path: linux-binary
+
+    - name: Download MacOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: n50-calculator-macos
+        path: macos-binary
+
+    - name: Compress Linux binary
       run: |
-        tar -czvf n50-calculator-linux-amd64.tar.gz -C bin n50
+        tar -czvf n50-calculator-linux-amd64.tar.gz -C linux-binary n50
 
-    - name: Upload Release Asset
+    - name: Compress MacOS binary
+      run: |
+        tar -czvf n50-calculator-macos-amd64.tar.gz -C macos-binary n50
+
+    - name: Upload Linux Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,4 +97,14 @@ jobs:
         upload_url: ${{ github.event.release.upload_url }}
         asset_path: ./n50-calculator-linux-amd64.tar.gz
         asset_name: n50-calculator-linux-amd64.tar.gz
+        asset_content_type: application/gzip
+
+    - name: Upload MacOS Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./n50-calculator-macos-amd64.tar.gz
+        asset_name: n50-calculator-macos-amd64.tar.gz
         asset_content_type: application/gzip
