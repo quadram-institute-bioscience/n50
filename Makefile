@@ -6,6 +6,8 @@ SRC_DIR = src
 BIN_DIR = bin
 TEST_DIR = test
 TARGET  = $(BIN_DIR)/n50 
+COUNTBIN = $(BIN_DIR)/fqc
+COUNTFABIN = $(BIN_DIR)/fac
 SIMTARGET = $(BIN_DIR)/gen
 SIMDATA = test/sim/list.txt
 # Find all n50 variant source files
@@ -15,7 +17,7 @@ N50_VARIANT_TARGETS := $(patsubst $(SRC_DIR)/n50_%.c,$(BIN_DIR)/n50_%,$(N50_VARI
 
 .PHONY: all clean test
 
-all: $(TARGET) $(SIMTARGET) $(TESTTARGET) $(N50_VARIANT_TARGETS)
+all: $(TARGET) $(SIMTARGET) $(TESTTARGET) $(N50_VARIANT_TARGETS) $(COUNTBIN) $(COUNTFABIN)
 
 #Make targets
 $(TARGET): $(SRC_DIR)/n50.c | $(BIN_DIR)
@@ -27,6 +29,11 @@ $(TESTTARGET): $(SRC_DIR)/n50_opt.c | $(BIN_DIR)
 $(SIMTARGET): $(SRC_DIR)/gen.c | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< -o $@  
 
+$(COUNTBIN): $(SRC_DIR)/counts.c
+	$(CC) -O3 -pthread $< -o $@ -lz -lpthread
+
+$(COUNTFABIN): $(SRC_DIR)/countfa.c
+	$(CC) -O3 -pthread $< -o $@ -lz -lpthread
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)

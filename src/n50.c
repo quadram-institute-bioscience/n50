@@ -15,7 +15,7 @@
 #define BUFFER_SIZE 4 * 1024 * 1024  // 4MB buffer
 #define MAX_THREADS 16
 #define INITIAL_CAPACITY 1000000
-#define VERSION "2.0.0"
+#define VERSION "1.9.0"
 
 typedef struct {
     uint64_t *lengths;
@@ -141,16 +141,19 @@ void print_usage(const char *program_name) {
 }
 
 void print_version(void) {
-    printf("N50 Calculator version %s\n", VERSION);
-    printf("Copyright (C) 2024 Andrea Telatin\n");
-    printf("License: MIT\n");
+    printf("%s\n", VERSION);
+    fprintf(stderr, "n50 v%s\n", VERSION);
+    fprintf(stderr, "Copyright (C) 2024 Quadram Institute Bioscience\n");
+    fprintf(stderr, "License: MIT\n");
 }
 
 int compare(const void *a, const void *b) {
+    // Compare function for qsort
     return (*(uint64_t*)b - *(uint64_t*)a);
 }
 
 void *process_chunk(void *arg) {
+    // Process a chunk of data in a separate thread
     ThreadData *data = (ThreadData*)arg;
     uint64_t local_total_length = 0;
     uint64_t *local_lengths = malloc((data->end - data->start) * sizeof(uint64_t));

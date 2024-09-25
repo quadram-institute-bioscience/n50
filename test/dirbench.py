@@ -21,7 +21,7 @@ def check_deps(verbose):
 
     for cmd in test_cmds:
         try:
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if verbose:
                 print(f"Command {cmd[0]} found.")
         except FileNotFoundError:
@@ -54,17 +54,37 @@ def split_files_type(files):
         for ext in exts:
             if file.endswith(ext):
                 results[exts[ext]].append(file)
+                print(f"Adding {file} to {exts[ext]}", file=sys.stderr)
+                
         
     return results
 
-def gen_cmd(files, params=['--max-runs 5', '--warmup 1']):
+def filesize(filepath, unit="Mb"):
+    """
+    Return filesize in the required unit (b, kb, Mb, Gb).
+    """
+    size = os.path.getsize(filepath)
+    if unit == "b":
+        return size
+    elif unit == "kb":
+        return size / 1024
+    elif unit == "Mb":
+        return size / (1024 * 1024)
+    elif unit == "Gb":
+        return size / (1024 * 1024 * 1024)
+    else:
+        raise ValueError("Invalid unit. Choose from 'b', 'kb', 'Mb', 'Gb'.")
+
+def gen_cmd(files, outdir, testname, params=['--max-runs', '5', '--warmup', '1']):
     cmd = ['hyperfine']
+    csv = os.path.join(outdir, f"{testname}.csv")
+    params.extend(['--export-csv', csv])
     cmd.extend(params)
     progs = ['n50', 'seqfu stats', 'seqkit stats --all']
     for p in progs:
         cmd.append(f"{p} {' '.join(files)}")
     
-    print(cmd)
+    return cmd
 
 if __name__ == "__main__":
     import argparse
@@ -73,10 +93,21 @@ if __name__ == "__main__":
     args.add_argument('-o','--outdir', help="")
     args.add_argument("--verbose", action="store_true", help="Print verbose output.")
     args = args.parse_args()
+    if args.verbose:
+        print(f"Received {len(args.FILES)} files", file=sys.stderr)
     check_deps(args.verbose)
     file_groups = split_files_type(args.FILES)
     for ftype in file_groups:
         print(ftype, "\t", len(file_groups[ftype]))
-        c = gen_cmd(file_groups[ftype])
+        if len(file_groups[ftype]) == 0:
+            continue
+        c = gen_cmd(file_groups[ftype], args.outdir, ftype)
+        try:
+            print(c)
+            # run suppressing output
+            subprocess.run(c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(e)
+            sys.exit(1)
 
     
