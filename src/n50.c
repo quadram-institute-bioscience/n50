@@ -15,7 +15,7 @@
 #define BUFFER_SIZE 4 * 1024 * 1024  // 4MB buffer
 #define MAX_THREADS 16
 #define INITIAL_CAPACITY 1000000
-#define VERSION "2.0.0"
+#define VERSION "1.9.0"
 
 typedef struct {
     uint64_t *lengths;
