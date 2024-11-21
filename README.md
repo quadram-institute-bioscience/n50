@@ -2,7 +2,7 @@
 
 [![N50 Calculator CI](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml/badge.svg)](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml)
 
-A fast and efficient tool for calculating N50 and other sequence statistics from FASTA and FASTQ files.
+N50 Calculation and tools to simulate datasets and benchmark
 
 ## Tools
 
