@@ -1,360 +1,145 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 #include <pthread.h>
-#include <ctype.h>
-#include <getopt.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <limits.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 
-// compile time constant DEBUG=0
-#define DEBUG 0
-
-#define BUFFER_SIZE 4 * 1024 * 1024  // 4MB buffer
-#define MAX_THREADS 16
-#define INITIAL_CAPACITY 1000000
-#define VERSION "1.9.0"
+#define BUF_SIZE (100 * 1024 * 1024)
+#define MAX_PATH 4096
+#define MAX_SEQ_LEN (10 * 1024 * 1024)
 
 typedef struct {
-    uint64_t *lengths;
-    int start;
-    int end;
-    uint64_t total_length;
-} ThreadData;
+    const char *filename;
+    unsigned long tot_seqs;
+    unsigned long tot_bp;
+    unsigned *lengths;
+    unsigned len_cap;
+    unsigned len_size;
+} FileStat;
 
-typedef struct {
-    char *filename;
-    uint64_t total_length;
-    int length_count;
-    uint64_t n50;
-    uint64_t max_length;
-    uint64_t min_length;
-    bool is_fastq;
-    uint64_t bases[5];  // A, C, G, T, Other
-} FileStats;
+void *process_file(void *arg);
+int compare_desc(const void *a, const void *b);
+int is_fastq(const char *filename);
 
-// Function prototypes
-void print_usage(const char *program_name);
-void print_version(void);
-int compare(const void *a, const void *b);
-void *process_chunk(void *arg);
-FileStats process_file(const char *filename, bool force_fasta, bool force_fastq, bool extra);
-
-// Main function
 int main(int argc, char *argv[]) {
-    bool opt_header = false;
-    bool opt_n50 = false;
-    bool force_fasta = false;
-    bool force_fastq = false;
-    bool extra = false;
-    static struct option long_options[] = {
-        {"fasta", no_argument, 0, 'a'},
-        {"fastq", no_argument, 0, 'q'},
-        {"header", no_argument, 0, 'H'},
-        {"n50", no_argument, 0, 'n'},
-        {"help", no_argument, 0, 'h'},
-        {"version", no_argument, 0, 'v'},
-        {"extra", no_argument, 0, 'x'},
-        {0, 0, 0, 0}
-    };
-
-    int opt;
-    while ((opt = getopt_long(argc, argv, "aqHnhvx", long_options, NULL)) != -1) {
-        switch (opt) {
-            case 'a': force_fasta = true; break;
-            case 'q': force_fastq = true; break;
-            case 'H': opt_header = true; break;
-            case 'n': opt_n50 = true; break;
-            case 'h': print_usage(argv[0]); return 0;
-            case 'v': print_version(); return 0;
-            case 'x': extra = true; break;
-            default: fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]); return 1;
-        }
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s FILES...\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
 
-    if (optind == argc) {
-        fprintf(stderr, "Error: No input files specified\n");
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        return 1;
+    pthread_t threads[argc - 1];
+    FileStat stats[argc - 1];
+
+    for (int i = 1; i < argc; ++i) {
+        stats[i - 1].filename = argv[i];
+        stats[i - 1].tot_seqs = 0;
+        stats[i - 1].tot_bp = 0;
+        stats[i - 1].lengths = malloc(sizeof(unsigned) * 1000000);
+        stats[i - 1].len_cap = 1000000;
+        stats[i - 1].len_size = 0;
+        pthread_create(&threads[i - 1], NULL, process_file, &stats[i - 1]);
     }
 
-    if (opt_header && !opt_n50) {
-        if (!extra) {
-            printf("Filename\tFormat\tTotal_Length\tTotal_Sequences\tN50\n");
-        } else {
-            printf("Filename\tFormat\tTotal_Length\tTotal_Sequences\tN50\tMin\tMax\tA\tC\tG\tT\tOther\n");
-        }
-    }
-
-    for (int i = optind; i < argc; i++) {
-        FileStats stats = process_file(argv[i], force_fasta, force_fastq, extra);
-        
-        if (opt_n50) {
-            printf("%s\t%llu\n", stats.filename, stats.n50);
-        } else {
-            if (extra) {
-                double total_bases = stats.bases[0] + stats.bases[1] + stats.bases[2] + stats.bases[3] + stats.bases[4];
-                double base_ratios[5];
-                for (int j = 0; j < 5; j++) {
-                    base_ratios[j] = (double)stats.bases[j] / total_bases * 100;
-                }
-                printf("%s\t%s\t%llu\t%d\t%llu\t%llu\t%llu\t%.2f\t%.2f\t%.2f\t%.2f\t%.2f\n",
-                    stats.filename,
-                    stats.is_fastq ? "FASTQ" : "FASTA",
-                    stats.total_length,
-                    stats.length_count,
-                    stats.n50,
-                    stats.min_length,
-                    stats.max_length,
-                    base_ratios[0],
-                    base_ratios[1],
-                    base_ratios[2],
-                    base_ratios[3],
-                    base_ratios[4]);
-            } else {
-                printf("%s\t%s\t%llu\t%d\t%llu\n", stats.filename, stats.is_fastq ? "FASTQ" : "FASTA", stats.total_length, stats.length_count, stats.n50);
+    printf("Filename\tTotSeqs\tTotBp\tN50\n");
+    for (int i = 0; i < argc - 1; ++i) {
+        pthread_join(threads[i], NULL);
+        qsort(stats[i].lengths, stats[i].len_size, sizeof(unsigned), compare_desc);
+        unsigned long sum = 0, half = stats[i].tot_bp / 2;
+        unsigned N50 = 0;
+        for (unsigned j = 0; j < stats[i].len_size; ++j) {
+            sum += stats[i].lengths[j];
+            if (sum >= half) {
+                N50 = stats[i].lengths[j];
+                break;
             }
         }
-
-        free(stats.filename);
+        printf("%s\t%lu\t%lu\t%u\n", stats[i].filename, stats[i].tot_seqs, stats[i].tot_bp, N50);
+        free(stats[i].lengths);
     }
-
     return 0;
 }
 
-void print_usage(const char *program_name) {
-    printf("Usage: %s [OPTIONS] [FILENAME...]\n", program_name);
-    printf("\nOptions:\n");
-    printf("  -a, --fasta        Force FASTA input format\n");
-    printf("  -q, --fastq        Force FASTQ input format\n");
-    printf("  -H, --header       Print header in output\n");
-    printf("  -n, --n50          Output only N50 value\n");
-    printf("  -x, --extra        Output extra statistics\n");
-    printf("  -h, --help         Display this help message and exit\n");
-    printf("      --version      Display version information and exit\n");
-    printf("\nDescription:\n");
-    printf("  Calculate N50 and other sequence statistics from FASTA or FASTQ files.\n");
-    printf("  Supports multiple input files, automatic format detection, and reading from STDIN.\n");
-    printf("  Use '-' as filename to read uncompressed input from STDIN.\n");
-}
-
-void print_version(void) {
-    printf("%s\n", VERSION);
-    fprintf(stderr, "n50 v%s\n", VERSION);
-    fprintf(stderr, "Copyright (C) 2024 Quadram Institute Bioscience\n");
-    fprintf(stderr, "License: MIT\n");
-}
-
-int compare(const void *a, const void *b) {
-    // Compare function for qsort
-    return (*(uint64_t*)b - *(uint64_t*)a);
-}
-
-void *process_chunk(void *arg) {
-    // Process a chunk of data in a separate thread
-    ThreadData *data = (ThreadData*)arg;
-    uint64_t local_total_length = 0;
-    uint64_t *local_lengths = malloc((data->end - data->start) * sizeof(uint64_t));
-    int local_count = 0;
-
-    for (int i = data->start; i < data->end; i++) {
-        local_total_length += data->lengths[i];
-        local_lengths[local_count++] = data->lengths[i];
+void *process_file(void *arg) {
+    FileStat *stat = (FileStat *)arg;
+    int fastq = is_fastq(stat->filename);
+    gzFile fp = gzopen(stat->filename, "rb");
+    if (!fp) {
+        perror(stat->filename);
+        pthread_exit(NULL);
     }
-
-    ThreadData *result = malloc(sizeof(ThreadData));
-    result->lengths = local_lengths;
-    result->start = data->start;
-    result->end = data->end;
-    result->total_length = local_total_length;
-
-    return result;
-}
-
-
-FileStats process_file(const char *filename, bool force_fasta, bool force_fastq, bool extra) {
-    FILE *fp = NULL;
-    gzFile gzfp = NULL;
-    bool is_stdin = (strcmp(filename, "-") == 0);
-    bool is_gzipped = (!is_stdin && strstr(filename, ".gz") != NULL);
-
-    if (is_stdin) {
-        fp = stdin;
-    } else if (is_gzipped) {
-        gzfp = gzopen(filename, "r");
-        if (!gzfp) {
-            fprintf(stderr, "Error: Cannot open file %s\n", filename);
-            exit(1);
-        }
-    } else {
-        fp = fopen(filename, "r");
-        if (!fp) {
-            fprintf(stderr, "Error: Cannot open file %s\n", filename);
-            exit(1);
-        }
-    }
-
-    char buffer[BUFFER_SIZE];
-    uint64_t *chunk_lengths = NULL;
-    int chunk_count = 0;
-    int chunk_capacity = INITIAL_CAPACITY;
-
-    // Extra statistics
-    uint64_t current_length = 0;
-    uint64_t min = UINT64_MAX;
-    uint64_t max = 0;
-    uint64_t bases[5] = {0};  // A, C, G, T, Other
-
-    bool is_fastq = force_fastq || (!force_fasta && (strstr(filename, ".fastq") != NULL || strstr(filename, ".fq") != NULL));
-
-    chunk_lengths = malloc(chunk_capacity * sizeof(uint64_t));
-
-    // lookup table
-        // Create a lookup table for base counting
-    uint8_t base_lookup[256] = {0};
-    base_lookup['A'] = base_lookup['a'] = 0;
-    base_lookup['C'] = base_lookup['c'] = 1;
-    base_lookup['G'] = base_lookup['g'] = 2;
-    base_lookup['T'] = base_lookup['t'] = 3;
-
-    if (is_fastq) {
-
-        #if DEBUG
-            fprintf(stderr, "Debug: Processing FASTQ file %s\n", filename);
-        #endif
-        int newline_count = 0;
-        bool in_sequence = false;
-        while (1) {
-            size_t bytes_read;
-            if (is_gzipped) {
-                bytes_read = gzread(gzfp, buffer, BUFFER_SIZE);
+    char *buf = malloc(BUF_SIZE);
+    char *seq = malloc(MAX_SEQ_LEN);
+    size_t seq_len = 0;
+    int state = fastq ? 0 : 1;  // FASTQ state machine: 0-1-2-3
+    while (gzgets(fp, buf, BUF_SIZE)) {
+        size_t len = strlen(buf);
+        if (buf[len - 1] == '\n') buf[len - 1] = '\0';
+        if (fastq) {
+            if (state == 1) {
+                seq_len = strlen(buf);
+                if (stat->len_size >= stat->len_cap) {
+                    stat->len_cap *= 2;
+                    stat->lengths = realloc(stat->lengths, stat->len_cap * sizeof(unsigned));
+                }
+                stat->lengths[stat->len_size++] = seq_len;
+                stat->tot_bp += seq_len;
+                stat->tot_seqs++;
+            }
+            state = (state + 1) % 4;
+        } else {
+            if (buf[0] == '>') {
+                if (seq_len > 0) {
+                    if (stat->len_size >= stat->len_cap) {
+                        stat->len_cap *= 2;
+                        stat->lengths = realloc(stat->lengths, stat->len_cap * sizeof(unsigned));
+                    }
+                    stat->lengths[stat->len_size++] = seq_len;
+                    stat->tot_bp += seq_len;
+                    stat->tot_seqs++;
+                    seq_len = 0;
+                }
             } else {
-                bytes_read = fread(buffer, 1, BUFFER_SIZE, fp);
-            }
-            if (bytes_read == 0) break;
-
-            for (size_t i = 0; i < bytes_read; i++) {
-                char c = buffer[i];
-                if (c == '\n') {
-                    newline_count++;
-                    if (newline_count % 4 == 1) {
-                        in_sequence = true;
-                    } else if (newline_count % 4 == 2) {
-                        in_sequence = false;
-                        if (chunk_count == chunk_capacity) {
-                            chunk_capacity *= 2;
-                            chunk_lengths = realloc(chunk_lengths, chunk_capacity * sizeof(uint64_t));
-                        }
-                        chunk_lengths[chunk_count++] = current_length;
-                        
-                        if (extra) {
-                            if (current_length > max) max = current_length;
-                            if (current_length < min) min = current_length;
-                        }
-                        current_length = 0;
-                    }
-                } else if (in_sequence) {
-                    current_length++;
-                    if (extra) {
-                        bases[base_lookup[(uint8_t)c]]++;
-                    }
-                }
-            }
-        }
-    } else {  // FASTA
-        bool in_sequence = false;
-        while (1) {
-            char *result;
-            if (is_gzipped) {
-                result = gzgets(gzfp, buffer, BUFFER_SIZE);
-            } else {
-                result = fgets(buffer, BUFFER_SIZE, fp);
-            }
-            if (!result) break;
-
-            if (buffer[0] == '>') {
-                if (current_length > 0) {
-                    if (chunk_count == chunk_capacity) {
-                        chunk_capacity *= 2;
-                        chunk_lengths = realloc(chunk_lengths, chunk_capacity * sizeof(uint64_t));
-                    }
-                    chunk_lengths[chunk_count++] = current_length;
-                    if (extra) {
-                        if (current_length > max) max = current_length;
-                        if (current_length < min) min = current_length;
-                    }
-                    current_length = 0;
-                }
-                in_sequence = true;
-            } else if (in_sequence) {
-                uint64_t len = strcspn(buffer, "\n");
-                current_length += len;
-                if (extra) {
-                    for (uint64_t i = 0; i < len; i++) {
-                        bases[base_lookup[(uint8_t)buffer[i]]]++;
-                    }
-                }
-            }
-        }
-        if (current_length > 0) {
-            if (chunk_count == chunk_capacity) {
-                chunk_capacity *= 2;
-                chunk_lengths = realloc(chunk_lengths, chunk_capacity * sizeof(uint64_t));
-            }
-            chunk_lengths[chunk_count++] = current_length;
-            if (extra) {
-                if (current_length > max) max = current_length;
-                if (current_length < min) min = current_length;
+                seq_len += strlen(buf);
             }
         }
     }
-
-    if (is_gzipped) {
-        gzclose(gzfp);
-    } else if (!is_stdin) {
-        fclose(fp);
-    }
-
-   // Calculate total length and other statistics
-    uint64_t total_length = 0;
-    for (int i = 0; i < chunk_count; i++) {
-        total_length += chunk_lengths[i];
-    }
-
-    // Calculate N50
-    qsort(chunk_lengths, chunk_count, sizeof(uint64_t), compare);
-    uint64_t cumulative_length = 0;
-    uint64_t n50 = 0;
-    for (int i = chunk_count - 1; i >= 0; i--) {
-        cumulative_length += chunk_lengths[i];
-        if (cumulative_length >= total_length / 2) {
-            n50 = chunk_lengths[i];
-            break;
+    if (!fastq && seq_len > 0) {
+        if (stat->len_size >= stat->len_cap) {
+            stat->len_cap *= 2;
+            stat->lengths = realloc(stat->lengths, stat->len_cap * sizeof(unsigned));
         }
+        stat->lengths[stat->len_size++] = seq_len;
+        stat->tot_bp += seq_len;
+        stat->tot_seqs++;
     }
-
-    free(chunk_lengths);
-
-    FileStats stats = {
-        .filename = strdup(filename),
-        .total_length = total_length,
-        .length_count = chunk_count,
-        .n50 = n50,
-        .is_fastq = is_fastq,
-        .max_length = max,
-        .min_length = min
-    };
-    
-    if (extra) {
-        for (int i = 0; i < 5; i++) {
-            stats.bases[i] = bases[i];
-        }
-    }
-
-    #if DEBUG
-        fprintf(stderr, "Debug: Final stats - total_length: %lu, chunk_count: %d\n", stats.total_length, stats.length_count);
-    #endif
-    return stats;
+    gzclose(fp);
+    free(buf);
+    free(seq);
+    pthread_exit(NULL);
 }
+
+int compare_desc(const void *a, const void *b) {
+    return (*(unsigned *)b) - (*(unsigned *)a);
+}
+
+int is_fastq(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if (!dot) return 0;
+    if (strcmp(dot, ".gz") == 0) {
+        char *dup = strdup(filename);
+        char *dot2 = strrchr(dup, '.');
+        if (dot2) *dot2 = '\0';
+        dot2 = strrchr(dup, '.');
+        int isfq = (dot2 && (!strcmp(dot2, ".fq") || !strcmp(dot2, ".fastq")));
+        free(dup);
+        return isfq;
+    }
+    return (!strcmp(dot, ".fq") || !strcmp(dot, ".fastq"));
+}
+
