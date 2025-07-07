@@ -56,18 +56,24 @@ do
 done
 
 I=0
-for FILE in "$OUT_DIR"/*; 
+for FILE in "$OUT_DIR"/*;
 do
     I=$((I+1))
     echo "$I/$COUNTER: Simulated reads: $FILE"
-    OUTPUT=$("${BIN_DIR}"/n50 "$FILE" | sed 's/\t/,/g')
-    # First field
-    FILENAME=$(basename $(echo $OUTPUT | cut -d' ' -f1))
+    # The new n50 program prints a header, so we skip it with tail -n 1
+    # The output is tab-separated, we convert it to comma-separated
+    OUTPUT=$("${BIN_DIR}"/n50 "$FILE" | tail -n 1 | sed 's/	/,/g')
+
+    # The filename from which we get the expected values
+    FILENAME=$(basename "$FILE")
     EXP_N50=$(echo "${FILENAME}" | cut -f 1 -d '_' | cut -f 1 -d '.')
     EXP_SEQS=$(echo "${FILENAME}" | cut -f 2 -d '_' | cut -f 1 -d '.')
     EXP_BASES=$(echo "${FILENAME}" | cut -f 3 -d '_'  | cut -f 1 -d '.')
-    REAL_N50=$(echo "$OUTPUT" | cut -d',' -f 5)
-    REAL_SEQS=$(echo "$OUTPUT" | cut -d',' -f 4)
+
+    # New output format: Filename, TotSeqs, TotBp, N50
+    # Corresponds to:    1       , 2      , 3    , 4
+    REAL_N50=$(echo "$OUTPUT" | cut -d',' -f 4)
+    REAL_SEQS=$(echo "$OUTPUT" | cut -d',' -f 2)
     REAL_BASES=$(echo "$OUTPUT" | cut -d',' -f 3)
     if [ "$EXP_N50" != "$REAL_N50" ]; then
         echo "ERROR: N50 mismatch: $EXP_N50 != $REAL_N50"
