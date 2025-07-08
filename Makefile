@@ -1,6 +1,10 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 
-LDFLAGS = -lz -lpthread
+# Use ?= to allow conda-build to override these variables
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra -O3
+CPPFLAGS ?=
+LDFLAGS ?=
+# Separate libraries from linker flags
+LIBS = -lz -lpthread
 
 SRC_DIR = src
 BIN_DIR = bin
@@ -11,6 +15,7 @@ COUNTFABIN = $(BIN_DIR)/fac
 COUNTFXBIN = $(BIN_DIR)/countfx
 SIMTARGET = $(BIN_DIR)/gen
 SIMDATA = test/sim/list.txt
+
 # Find all n50 variant source files
 N50_VARIANTS := $(wildcard $(SRC_DIR)/n50_*.c)
 # Create target names for all n50 variants
@@ -18,45 +23,44 @@ N50_VARIANT_TARGETS := $(patsubst $(SRC_DIR)/n50_%.c,$(BIN_DIR)/n50_%,$(N50_VARI
 
 .PHONY: all clean test
 
-all: $(TARGET) $(SIMTARGET) $(TESTTARGET) $(N50_VARIANT_TARGETS) $(COUNTBIN) $(COUNTFABIN) $(COUNTFXBIN) $(SIMTARGET)
+all: $(TARGET) $(SIMTARGET) $(TESTTARGET) $(N50_VARIANT_TARGETS) $(COUNTBIN) $(COUNTFABIN) $(COUNTFXBIN)
 
-#Make targets
+# Make targets - include CPPFLAGS for conda's include paths
 $(TARGET): $(SRC_DIR)/n50.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
-
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LIBS)
 
 $(TESTTARGET): $(SRC_DIR)/n50_opt.c | $(BIN_DIR)
-	$(CC)  $(CFLAGS) $< -o $@ $(LDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LIBS)
 
 $(SIMTARGET): $(SRC_DIR)/gen.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) $< -o $@  
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-$(COUNTBIN): $(SRC_DIR)/counts.c
-	$(CC) -O3 -pthread $< -o $@ -lz -lpthread
+# Fix hardcoded rules to use variables consistently
+$(COUNTBIN): $(SRC_DIR)/counts.c | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread $< -o $@ $(LDFLAGS) $(LIBS)
 
-$(COUNTFABIN): $(SRC_DIR)/countfa.c
-	$(CC) -O3 -pthread $< -o $@ -lz -lpthread
+$(COUNTFABIN): $(SRC_DIR)/countfa.c | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread $< -o $@ $(LDFLAGS) $(LIBS)
 
-$(COUNTFXBIN): $(SRC_DIR)/countfx.c
-	$(CC) -O3 -pthread $< -o $@ -lz -lpthread
+$(COUNTFXBIN): $(SRC_DIR)/countfx.c | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -pthread $< -o $@ $(LDFLAGS) $(LIBS)
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
-
 # Rule for n50 variants
 $(BIN_DIR)/n50_%: $(SRC_DIR)/n50_%.c | $(BIN_DIR)
-	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -rf $(BIN_DIR)
 	if [ -d "test/sim" ]; then echo "Removing sim"; rm -rf test/sim/; fi
 
 $(SIMDATA): $(SIMTARGET)
-	# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format} \
+	# Generate simulated files each with filename like {N50}_{num_seqs}_{total_length}.{format}
 	mkdir -p test/sim; \
-	# ./program <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir>\
-	# small datasets \
+	# ./program <min_seqs> <max_seqs> <min_len> <max_len> <tot_files> <format> <outdir>
+	# small datasets
 	$(SIMTARGET) 500        1000          5      2000000    5 fasta test/sim/; \
 	$(SIMTARGET) 500        1000          5        10000    5 fastq test/sim/; \
 	# large datasets
@@ -95,11 +99,8 @@ autotest: $(TARGET)
 	fi
 	@rm test.fasta
 	@echo "Simple test completed."
-	
-
 
 benchmark: $(TARGET) $(SIMTARGET) $(SIMDATA)
-
 	if [ -d "test/sim" ]; then \
 		if [ ! -d "test/benchmark" ]; then mkdir -p test/benchmark; fi; \
 		if [ ! -d "test/local/" ]; then mkdir -p test/local/; fi; \
@@ -119,4 +120,3 @@ benchmark: $(TARGET) $(SIMTARGET) $(SIMDATA)
 	else \
 		echo "test/sim directory does not exist. Skipping simulation tests."; \
 	fi
- 

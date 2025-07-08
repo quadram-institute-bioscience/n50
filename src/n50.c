@@ -16,7 +16,7 @@
 KSEQ_INIT(gzFile, gzread)
 
 #define MAX_THREADS 4
-#define VERSION "1.9.2"
+#define VERSION "1.9.3"
 
 typedef enum {
     TSV,
