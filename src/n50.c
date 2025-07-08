@@ -13,7 +13,7 @@
 KSEQ_INIT(gzFile, gzread)
 
 #define MAX_THREADS 4
-#define VERSION "2.0.0"
+#define VERSION "1.9.2"
 
 typedef enum {
     TSV,
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
             case 'j': output_format = JSON; break;
             case 'c': output_format = CSV; break;
             case 'h': print_help(argv[0]); exit(0);
-            case 'v': printf("Version: %s\n", VERSION); exit(0);
+            case 'v': printf("%s\n", VERSION); exit(0);
             default: exit(EXIT_FAILURE);
         }
     }

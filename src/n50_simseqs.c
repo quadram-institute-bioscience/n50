@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define VERSION "2.0.0"
+#define VERSION "1.9.2"
 
 #define MAX_READS 1000000
 #define BASES "ACGTactAC"
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
             print_help(argv[0]);
             return 0;
         } else if (strcmp(argv[i], "--version") == 0) {
-            printf("Version: %s\n", VERSION);
+            printf("%s\n", VERSION);
             return 0;
         } else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) outdir = argv[++i];
         else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) prefix = argv[++i];
