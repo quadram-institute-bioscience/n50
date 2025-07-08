@@ -1,22 +1,22 @@
-# N50 Calculator v2.0
+# N50 Calculator
 
 [![N50 Calculator CI](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml/badge.svg)](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml)
 
-N50 Calculation and tools to simulate datasets and benchmark
+This repository provides tools for N50 calculation and dataset simulation.
 
-## Tools
+## Main Programs
 
-- [`n50` calculate N50](docs/README_N50.md)
+### `n50`
 
-- [`n50_simreads`](docs/README_N50_SIMREADS.md), to simulate reads based on the lengths desired
-- [`n50_binner`](docs/README_N50_BINNER.md),  to generate a summary of reads lengths from a FASTQ file to be used with `n50_generate`
-- [`n50_generate`](docs/README_N50_GENERATE.md) uses the output of `n50_binner` to generate reads (using `n50_simreads`) 
-  
-- [`gen`](docs/README_GEN.md), alternative generator
-- [benchmark notes](docs/README_BENCHMARK.md)
+A command-line tool to calculate the N50 value of a set of sequences.
+For detailed usage, refer to the [n50 documentation](docs/README_N50.md).
 
+### `n50_simseqs`
 
-## General requirements
+A utility for simulating sequences based on desired lengths.
+This is useful for generating test datasets or benchmarking.
+
+## General Requirements
 
 - C compiler
 - zlib, pthread libraries
@@ -28,16 +28,26 @@ make all
 make test
 ```
 
+## Other Tools
+
+This repository also includes additional tools for specific tasks:
+
+- [`n50_simreads`](docs/README_N50_SIMREADS.md): Simulate reads based on desired lengths.
+- [`n50_binner`](docs/README_N50_BINNER.md): Generate a summary of read lengths from a FASTQ file.
+- [`n50_generate`](docs/README_N50_GENERATE.md): Generate reads using `n50_simreads` based on `n50_binner` output.
+- [`gen`](docs/README_GEN.md): An alternative sequence generator.
+- [Benchmark Notes](docs/README_BENCHMARK.md)
+
 ## Author
 
 Andrea Telatin, 2023
 
 ## License
 
-This program is open-source software released under the MIT License
+This program is open-source software released under the [MIT License](LICENSE).
 
 ## Contributing
 
 Contributions to improve the N50 Calculator are welcome.
 Please submit pull requests or open issues on the project's repository.
-Be kind and adhere to the Code of Conduct  like the [Contributor Covenant](https://www.contributor-covenant.org/).
+Be kind and adhere to the Code of Conduct like the [Contributor Covenant](https://www.contributor-covenant.org/).
