@@ -13,15 +13,15 @@ header() {
 }
 
 success() {
-    echo -e "${GREEN}✔ $1${NC}"
+    echo -e "${GREEN}✔${NC} $1${NC}"
 }
 
 fail() {
-    echo -e "${RED}✖ $1${NC}"
+    echo -e "${RED}✖${NC} $1${NC}"
 }
 
 info() {
-    echo -e "${YELLOW}→ $1${NC}"
+    echo -e "${YELLOW}→${NC} $1${NC}"
 }
 
 # Start build
@@ -45,13 +45,19 @@ else
     fail "Invalid version: n50_simseqs $V2"
 fi
 
+if [[ $V1 == $V2 ]]; then
+   success "Same version for main tools"
+else
+   fail "$V1 != $V2, different output from --version"
+fi
+
 # Run test
 header "Running minimal N50 test..."
 ./bin/n50 --basename ./test/test.fa > ./test/output.tsv
 
 expected_output="test.fa	3	34	18	12	4	1	52.94	11.33	4	18"
-actual_output=$(tail -n 1 ./test/output.tsv)
-
+actual_output=$(tail -n 1 ./test/output.tsv | cut -f 1-11)
+rm ./test/output.tsv
 if [ "$actual_output" == "$expected_output" ]; then
     success "N50 minimal test passed!"
 else
@@ -90,6 +96,7 @@ done
 header "Evaluating outputs..."
 for FILE in ${OUTDIR}/*.{fasta,fastq}*; do
     B=$(basename "$FILE" | cut -f 1 -d.)
+    X=$(basename "$FILE" | cut -f 2- -d.)
     N50=$(echo "$B" | cut -d _ -f 2)
     TOT=$(echo "$B" | cut -d _ -f 3)
     SIZE=$(echo "$B" | cut -d _ -f 4)
@@ -99,12 +106,31 @@ for FILE in ${OUTDIR}/*.{fasta,fastq}*; do
     TEST_TOT=$(echo "$EVAL" | cut -f 2 -d,)
     TEST_SIZE=$(echo "$EVAL" | cut -f 3 -d,)
 
-    [[ "$N50" == "$TEST_N50" ]] && success "Correct N50 in $B" || fail "Wrong N50 in $B: expected $N50, got $TEST_N50"
-    [[ "$TOT" == "$TEST_TOT" ]] && success "Correct total seqs in $B" || fail "Wrong total seqs in $B: expected $TOT, got $TEST_TOT"
-    [[ "$SIZE" == "$TEST_SIZE" ]] && success "Correct total size in $B" || fail "Wrong total size in $B: expected $SIZE, got $TEST_SIZE"
-
-    rm -f "$FILE"
+    [[ "$N50" == "$TEST_N50" ]] && success "OK N50 in $X" || fail "Wrong N50 in $X: expected $N50, got $TEST_N50"
+    [[ "$TOT" == "$TEST_TOT" ]] && success "OK total seqs in $X" || fail "Wrong total seqs in $X: expected $TOT, got $TEST_TOT"
+    [[ "$SIZE" == "$TEST_SIZE" ]] && success "OK total size in $X" || fail "Wrong total size in $X: expected $SIZE, got $TEST_SIZE"
+    if [[ $KEEPTMP == 0 ]]; then
+      rm -f "$FILE"
+    fi
 done
 
-rmdir "$OUTDIR" || true
+    if [[ $KEEPTMP == 1 ]]; then
+ echo Keeping $OUTDIR
+else
+ rmdir "$OUTDIR" || true
+fi
+
+# Test JSON output if jq is available
+header "Testing JSON output..."
+if command -v jq >/dev/null 2>&1; then
+    info "jq is available, testing n50 --json"
+    if ./bin/n50 --json ./test/test.fa | jq . >/dev/null 2>&1; then
+        success "n50 --json produces valid JSON"
+    else
+        fail "n50 --json produced invalid JSON"
+        exit 1
+    fi
+else
+    info "jq is not available, skipping JSON output test"
+fi
 
