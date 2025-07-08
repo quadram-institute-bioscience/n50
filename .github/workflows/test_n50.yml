@@ -25,7 +25,7 @@ jobs:
       run: make clean && make
 
     - name: Run tests
-      run: make test
+      run: test/run_test.sh
 
     - name: Run simple test
       run: make autotest
@@ -50,7 +50,7 @@ jobs:
       run: make clean && make
 
     - name: Run tests
-      run: make test
+      run: test/run_test.sh
 
     - name: Run simple test
       run: make autotest
@@ -89,22 +89,11 @@ jobs:
       run: |
         tar -czvf n50-calculator-macos-amd64.tar.gz -C macos-binary n50
 
-    - name: Upload Linux Release Asset
-      uses: actions/upload-release-asset@v1
+    - name: Upload Release Assets
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./n50-calculator-linux-amd64.tar.gz
-        asset_name: n50-calculator-linux-amd64.tar.gz
-        asset_content_type: application/gzip
-
-    - name: Upload MacOS Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./n50-calculator-macos-amd64.tar.gz
-        asset_name: n50-calculator-macos-amd64.tar.gz
-        asset_content_type: application/gzip
+        files: |
+          n50-calculator-linux-amd64.tar.gz
+          n50-calculator-macos-amd64.tar.gz
