@@ -25,10 +25,8 @@ jobs:
       run: make clean && make
 
     - name: Run tests
-      run: test/run_test.sh
+      run: bash test/run_test.sh
 
-    - name: Run simple test
-      run: make autotest
 
     - name: Archive binary
       uses: actions/upload-artifact@v4

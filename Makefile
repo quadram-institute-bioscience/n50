@@ -69,7 +69,7 @@ $(SIMDATA): $(SIMTARGET)
 
 # Test rule
 test: $(TARGET) $(SIMTARGET)
-	bash test/test.sh
+	bash test/run_test.sh
 
 # Original simple test
 autotest: $(TARGET)
