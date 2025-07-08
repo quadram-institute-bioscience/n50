@@ -78,6 +78,8 @@ for format in fasta fastq; do
     bin/n50_simseqs --${format} -o ${OUTDIR} -p test_ 1*20M 1*1M 10*9K 100*1K 1000*120
     bin/n50_simseqs --${format} -o ${OUTDIR} -p test_ 10*1M 100*2K 1000*120 2000*50
 done
+bin/n50_simseqs --fastq -o ${OUTDIR}         -p test_  100000*251
+
 
 # Compress
 header "Compressing outputs..."
@@ -111,16 +113,8 @@ for FILE in ${OUTDIR}/*.{fasta,fastq}*; do
     [[ "$N50" == "$TEST_N50" ]] && success "OK N50 in $X" || fail "Wrong N50 in $X: expected $N50, got $TEST_N50"
     [[ "$TOT" == "$TEST_TOT" ]] && success "OK total seqs in $X" || fail "Wrong total seqs in $X: expected $TOT, got $TEST_TOT"
     [[ "$SIZE" == "$TEST_SIZE" ]] && success "OK total size in $X" || fail "Wrong total size in $X: expected $SIZE, got $TEST_SIZE"
-    if [[ $KEEPTMP == 0 ]]; then
-      rm -f "$FILE"
-    fi
 done
 
-    if [[ $KEEPTMP == 1 ]]; then
- echo Keeping $OUTDIR
-else
- rmdir "$OUTDIR" || true
-fi
 
 # Test JSON output if jq is available
 header "Testing JSON output..."
@@ -134,5 +128,27 @@ if command -v jq >/dev/null 2>&1; then
     fi
 else
     info "jq is not available, skipping JSON output test"
+fi
+
+header "Testing FASTA counter"
+for i in test-data/*fasta*; 
+do
+  B=$(basename $i | cut -f 3 -d_);  
+  bin/fac $i | grep -w ${B} >/dev/null && success "FASTA counted $i" || fail "FASTA count failed $i"
+done
+
+header "Testing FASTQ counter"
+for i in test-data/*fastq*; 
+do
+  B=$(basename $i | cut -f 3 -d_);  
+  bin/fqc $i | grep -w ${B} >/dev/null && success "FASTQ counted $i" || fail "FASTQ count failed $i"
+done
+
+
+if [[ $KEEPTMP == 1 ]]; then
+ echo Keeping $OUTDIR
+else
+ rm -rf "$OUTDIR"/*.{fasta,fastq}* || true
+ rmdir "$OUTDIR" || true
 fi
 
