@@ -1,4 +1,4 @@
-#define GNUSOURCE
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -13,7 +13,7 @@
 static int num_threads = DEFAULT_THREADS;
 typedef struct {
     gzFile file;
-    size_t newline_count;
+    size_t seq_count;
     int thread_id;
 } ThreadData;
 pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -49,7 +49,7 @@ void *count_newlines(void *arg) {
         }
     }
     pthread_mutex_lock(&count_mutex);
-    data->newline_count += local_count;
+    data->seq_count += local_count;
     pthread_mutex_unlock(&count_mutex);
     free(buffer);
     return NULL;
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     }
     for (int i = 0; i < num_threads; i++) {
         thread_data[i].file = file;
-        thread_data[i].newline_count = 0;
+        thread_data[i].seq_count = 0;
         thread_data[i].thread_id = i;
         if (pthread_create(&threads[i], NULL, count_newlines, &thread_data[i]) != 0) {
             fprintf(stderr, "Error creating thread %d: %s\n", i, strerror(errno));
@@ -137,9 +137,9 @@ int main(int argc, char **argv) {
         free(thread_data);
         return 1;
     }
-    size_t total_newlines = 0;
+    size_t total_sequences = 0;
     for (int i = 0; i < num_threads; i++) {
-        total_newlines += thread_data[i].newline_count;
+        total_sequences += thread_data[i].newline_count;
     }
     printf("Total sequences: %zu\n", total_newlines);
     free(threads);
