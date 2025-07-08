@@ -3,3 +3,4 @@ test/local
 bin/*
 test/sim/*.*
 data/doc.md
+test-data
