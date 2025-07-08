@@ -42,6 +42,13 @@ static void queue_init(ChunkQueue *q) {
 }
 
 static void queue_destroy(ChunkQueue *q) {
+    Chunk *c = q->head;
+    while (c) {
+        Chunk *next = c->next;
+        free(c->data);
+        free(c);
+        c = next;
+    }
     pthread_mutex_destroy(&q->mutex);
     pthread_cond_destroy(&q->cond);
 }
