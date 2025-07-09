@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <math.h>
 
 #include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
@@ -135,6 +136,7 @@ void *process_file(void *arg) {
     unsigned long gc_count = 0;
     unsigned long min_len = ULONG_MAX, max_len = 0;
     unsigned long total_quality = 0, q20_count = 0, q30_count = 0;
+    double total_error_prob_sum = 0.0;
     size_t alloc = 1024;
     unsigned *lengths = malloc(sizeof(unsigned) * alloc);
     seq_qual_t *seq_quals = malloc(sizeof(seq_qual_t) * alloc);
@@ -177,14 +179,17 @@ void *process_file(void *arg) {
         if (len > max_len) max_len = len;
         
         // Parse quality values
-        unsigned long seq_quality_sum = 0;
+        double seq_error_prob_sum = 0.0;
         for (unsigned i = 0; i < len; i++) {
             char c = seq->seq.s[i];
             if (c == 'G' || c == 'g' || c == 'C' || c == 'c') gc_count++;
             
             // Parse quality score
             int qual = (int)seq->qual.s[i] - task->qual_offset;
-            seq_quality_sum += qual;
+            // Convert quality to error probability: P = 10^(-Q/10)
+            double error_prob = pow(10.0, -qual / 10.0);
+            seq_error_prob_sum += error_prob;
+            total_error_prob_sum += error_prob;
             total_quality += qual;
             if (qual >= 20) q20_count++;
             if (qual >= 30) q30_count++;
@@ -192,7 +197,9 @@ void *process_file(void *arg) {
         
         // Store sequence length, average quality, and readname
         seq_quals[total_seqs].length = len;
-        seq_quals[total_seqs].avg_quality = (double)seq_quality_sum / len;
+        // Calculate average quality using logarithmic method: Q_avg = -10 * log10(P_avg)
+        double avg_error_prob = seq_error_prob_sum / len;
+        seq_quals[total_seqs].avg_quality = (avg_error_prob == 0.0) ? 0.0 : -10.0 * log10(avg_error_prob);
         seq_quals[total_seqs].readname = malloc(strlen(seq->name.s) + 1);
         if (seq_quals[total_seqs].readname) {
             strcpy(seq_quals[total_seqs].readname, seq->name.s);
@@ -238,7 +245,9 @@ void *process_file(void *arg) {
     res->total_quality = total_quality;
     res->q20_count = q20_count;
     res->q30_count = q30_count;
-    res->avg_quality = (double)total_quality / total_len;
+    // Calculate average quality using logarithmic method: Q_avg = -10 * log10(P_avg)
+    double avg_error_prob = total_error_prob_sum / total_len;
+    res->avg_quality = (avg_error_prob == 0.0) ? 0.0 : -10.0 * log10(avg_error_prob);
     res->q20_fraction = (double)q20_count / total_len;
     res->q30_fraction = (double)q30_count / total_len;
 

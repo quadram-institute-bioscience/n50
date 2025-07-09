@@ -5,3 +5,5 @@ test/sim/*.*
 data/doc.md
 test-data
 test/benchmark/*
+.DS_Store
+local/
