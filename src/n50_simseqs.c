@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define VERSION "1.9.3"
+#define VERSION "1.9.4"
 
 #define MAX_READS 1000000
 #define BASES "ACGTactAC"
