@@ -48,6 +48,10 @@ $(COUNTFXBIN): $(SRC_DIR)/countfx.c | $(BIN_DIR)
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
+# Special rule for n50_qual which needs math library
+$(BIN_DIR)/n50_qual: $(SRC_DIR)/n50_qual.c | $(BIN_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LIBS) -lm
+
 # Rule for n50 variants
 $(BIN_DIR)/n50_%: $(SRC_DIR)/n50_%.c | $(BIN_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LIBS)
