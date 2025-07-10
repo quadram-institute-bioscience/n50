@@ -22,7 +22,7 @@ This is useful for generating test datasets or benchmarking.
 For PacBio and Nanopore reads, gather statistics of quality (average, Q20, Q30)
 and per read, that can be plotted as:
 
-![quality plot](docs/plot/png)
+![quality plot](docs/plot.png)
 
 ## General Requirements
 
