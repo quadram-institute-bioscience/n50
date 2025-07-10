@@ -1,6 +1,7 @@
 # N50 Calculator
 
 [![N50 Calculator CI](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml/badge.svg)](https://github.com/quadram-institute-bioscience/n50/actions/workflows/test_n50.yml)
+[![Bioconda-downloads](https://img.shields.io/conda/d/bioconda/n50)](https://bioconda.github.io/recipes/n50/README.html)
 
 This repository provides tools for N50 calculation and dataset simulation.
 
