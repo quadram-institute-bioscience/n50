@@ -17,6 +17,13 @@ For detailed usage, refer to the [n50 documentation](docs/README_N50.md).
 A utility for simulating sequences based on desired lengths.
 This is useful for generating test datasets or benchmarking.
 
+### `n50_qual`
+
+For PacBio and Nanopore reads, gather statistics of quality (average, Q20, Q30)
+and per read, that can be plotted as:
+
+![quality plot](docs/plot/png)
+
 ## General Requirements
 
 - C compiler
